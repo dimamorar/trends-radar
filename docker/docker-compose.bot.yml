@@ -1,0 +1,41 @@
+# TrendRadar Bot Docker Compose
+# Deploy with: docker compose -f docker/docker-compose.bot.yml up -d
+
+services:
+  trendradar-bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.bot
+    container_name: trendradar-bot
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - NODE_ENV=production
+    volumes:
+      # Persist bot database
+      - bot_data:/app/output/bot
+      # Persist RSS data (shared with main app if needed)
+      - rss_data:/app/output/rss
+      - news_data:/app/output/news
+      # Config can be mounted read-only
+      - ../config:/app/config:ro
+    networks:
+      - trendradar-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bot_data:
+    name: trendradar-bot-data
+  rss_data:
+    name: trendradar-rss-data
+  news_data:
+    name: trendradar-news-data
+
+networks:
+  trendradar-network:
+    name: trendradar-network

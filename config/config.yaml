@@ -1,0 +1,156 @@
+app:
+  timezone: "Europe/Kyiv"
+  showVersionUpdate: false
+  entrypoint: "run" # run | bot | both
+
+runtime:
+  verbose: true
+  # dry means no actual actions are taken, only logging is performed
+  dryRun: false
+  ai: "config" # on | off | config
+  mode: "config" # daily | current | incremental | config
+
+rss:
+  freshnessFilter:
+    enabled: true
+    maxAgeDays: 1 # Only last 24h for MVP
+  feeds:
+    - id: "pravda"
+      name: "Українська правда"
+      url: "https://www.pravda.com.ua/rss/"
+      enabled: true
+    - id: "unian"
+      name: "УНІАН"
+      url: "https://rss.unian.net/site/news_ukr.rss"
+      enabled: true
+    - id: "rbc"
+      name: "РБК-Україна"
+      url: "https://www.rbc.ua/static/rss/newsline.ukr.rss.xml"
+      enabled: true
+    - id: "nv"
+      name: "НВ"
+      url: "https://nv.ua/ukr/rss/all.xml"
+      enabled: true
+    - id: "censor"
+      name: "Цензор.НЕТ"
+      url: "https://assets.censor.net/rss/censor.net/rss_uk_news.xml"
+      enabled: true
+    - id: "tsn"
+      name: "ТСН"
+      url: "https://tsn.ua/rss/full.rss"
+      enabled: true
+    - id: "24tv"
+      name: "24 Канал"
+      url: "https://24tv.ua/rss/all.xml?googleFlg=true"
+      enabled: true
+    - id: "obozrevatel"
+      name: "Обозреватель"
+      url: "https://www.obozrevatel.com/ukr/out/rss/lastnews.xml"
+      enabled: true
+    - id: "korrespondent"
+      name: "Кореспондент"
+      url: "http://k.img.com.ua/rss/ua/all_news2.0.xml"
+      enabled: true
+    - id: "lb"
+      name: "LB.ua"
+      url: "https://lb.ua/rss/ukr/news.xml"
+      enabled: true
+
+report:
+  mode: "daily"
+  displayMode: "keyword"
+  maxNewsPerKeyword: 10
+
+notification:
+  enabled: true
+  channels:
+    telegram:
+      botToken: "${TELEGRAM_BOT_TOKEN}"
+      chatId: "${TELEGRAM_CHAT_ID}"
+
+storage:
+  backend: "local"
+  formats:
+    sqlite: true
+    txt: false
+    html: true
+  local:
+    dataDir: "output"
+    retentionDays: 7
+
+convex:
+  enabled: false
+  url: "${CONVEX_URL}"
+
+ai:
+  model: "openai/gpt-4o-mini"
+  apiKey: "${AI_API_KEY}"
+  timeout: 120
+
+aiAnalysis:
+  enabled: false
+  language: "Ukrainian"
+  promptFile: "ai_analysis_prompt-ua.txt"
+
+aiPipeline:
+  enabled: true
+  embedding:
+    model: "openai/text-embedding-3-small"
+    cacheEnabled: false
+  clustering:
+    similarityThreshold: 0.65
+  summarization:
+    model: "openai/gpt-4o-mini"
+    minImportance: 0.0
+    maxTopics: 12
+  scoring:
+    minSources: 1
+    minMentions: 2
+    sourceExponent: 1.4
+
+display:
+  regions:
+    hotlist: false # No platform data
+    rss: true
+    newItems: true
+    aiAnalysis: true
+
+# Phase 2: Telegram Channel Scraping (optional)
+telegramChannels:
+  enabled: false # Set to true when you have API credentials
+  apiId: "${TELEGRAM_API_ID}"
+  apiHash: "${TELEGRAM_API_HASH}"
+  sessionString: "${TELEGRAM_SESSION_STRING}"
+  scrapeHours: 24 # Only fetch messages from last N hours
+  limitPerChannel: 50 # Max messages per channel
+
+  channels:
+    # Tier 1: Major outlets
+    - username: "pravda_ua"
+      tier: 1
+      category: "news"
+    - username: "unaborisoff"
+      tier: 1
+      category: "news"
+    - username: "ua24tv"
+      tier: 1
+      category: "news"
+
+    # Tier 2: Analytics and Military
+    - username: "butusov_plus"
+      tier: 2
+      category: "military"
+
+# Interactive Telegram Bot
+bot:
+  enabled: true
+  # Bot token - uses TELEGRAM_BOT_TOKEN env var or notification.channels.telegram.botToken as fallback
+  botToken: "${TELEGRAM_BOT_TOKEN}"
+  # Admin user IDs (Telegram user IDs that can use admin commands)
+  adminUserIds: [7425170473, 308054423]
+  # Rate limiting for /report command
+  rateLimit:
+    reportsPerHour: 6
+    cooldownMinutes: 5
+  # Database path for subscriber storage
+  databasePath: "output/bot/bot.db"

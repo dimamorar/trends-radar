@@ -1,0 +1,42 @@
+# TrendRadar Bot - Dokploy Deployment
+# For use with Dokploy on Hetzner VPS
+# Uses external dokploy-network for integration with other services
+
+services:
+  trendradar-bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.bot
+    container_name: trendradar-bot
+    restart: unless-stopped
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - NODE_ENV=production
+    volumes:
+      - bot_data:/app/output/bot
+      - rss_data:/app/output/rss
+      - news_data:/app/output/news
+    networks:
+      - dokploy-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Uncomment for webhook mode with Traefik
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.trendradar-bot.rule=Host(`bot.yourdomain.com`)"
+    #   - "traefik.http.routers.trendradar-bot.entrypoints=websecure"
+    #   - "traefik.http.routers.trendradar-bot.tls.certresolver=letsencrypt"
+    #   - "traefik.http.services.trendradar-bot.loadbalancer.server.port=3000"
+
+volumes:
+  bot_data:
+  rss_data:
+  news_data:
+
+networks:
+  dokploy-network:
+    external: true
