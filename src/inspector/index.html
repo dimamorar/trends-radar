@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TrendRadar Pipeline Inspector</title>
+    <style>
+      :root {
+        --bg: #0f1117;
+        --bg2: #1a1d27;
+        --bg3: #242736;
+        --border: #2e3348;
+        --text: #e1e4ed;
+        --text2: #9ba1b5;
+        --accent: #6c8aff;
+        --accent2: #4c6ef5;
+        --green: #51cf66;
+        --orange: #ff922b;
+        --red: #ff6b6b;
+        --radius: 8px;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border);
+        background: var(--bg2);
+      }
+      header h1 {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      header .meta {
+        font-size: 13px;
+        color: var(--text2);
+      }
+
+      .tabs {
+        display: flex;
+        gap: 0;
+        border-bottom: 1px solid var(--border);
+        background: var(--bg2);
+        padding: 0 24px;
+        overflow-x: auto;
+      }
+      .tab {
+        padding: 12px 20px;
+        cursor: pointer;
+        font-size: 14px;
+        color: var(--text2);
+        border-bottom: 2px solid transparent;
+        white-space: nowrap;
+        transition:
+          color 0.15s,
+          border-color 0.15s;
+        user-select: none;
+      }
+      .tab:hover {
+        color: var(--text);
+      }
+      .tab.active {
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+        font-weight: 500;
+      }
+      .tab .badge {
+        display: inline-block;
+        background: var(--bg3);
+        color: var(--text2);
+        font-size: 11px;
+        padding: 1px 7px;
+        border-radius: 10px;
+        margin-left: 6px;
+        font-weight: 500;
+      }
+      .tab.active .badge {
+        background: var(--accent2);
+        color: #fff;
+      }
+
+      .panel {
+        display: none;
+        padding: 24px;
+      }
+      .panel.active {
+        display: block;
+      }
+
+      /* Items table */
+      .items-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .items-table th {
+        text-align: left;
+        padding: 10px 12px;
+        background: var(--bg2);
+        color: var(--text2);
+        font-weight: 500;
+        position: sticky;
+        top: 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .items-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .items-table tr:hover td {
+        background: var(--bg2);
+      }
+      .items-table a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      .items-table a:hover {
+        text-decoration: underline;
+      }
+      .items-table .summary-cell {
+        max-width: 400px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      /* Embeddings */
+      .embed-stats {
+        display: flex;
+        gap: 24px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+      }
+      .stat-card {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 24px;
+        min-width: 140px;
+      }
+      .stat-card .label {
+        font-size: 12px;
+        color: var(--text2);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .stat-card .value {
+        font-size: 28px;
+        font-weight: 600;
+        margin-top: 4px;
+      }
+      #pca-canvas {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        display: block;
+        width: 100%;
+        max-width: 900px;
+        height: 500px;
+      }
+
+      /* Cluster / scored cards */
+      .cluster-card {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 20px;
+        margin-bottom: 12px;
+      }
+      .cluster-card .cluster-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      .cluster-card .cluster-title {
+        font-weight: 600;
+        font-size: 15px;
+      }
+      .pill {
+        display: inline-block;
+        font-size: 11px;
+        padding: 2px 10px;
+        border-radius: 10px;
+        font-weight: 500;
+      }
+      .pill-score {
+        background: var(--accent2);
+        color: #fff;
+      }
+      .pill-sources {
+        background: #2b6e3f;
+        color: var(--green);
+      }
+      .pill-mentions {
+        background: #5c3d1a;
+        color: var(--orange);
+      }
+      .pill-members {
+        background: var(--bg3);
+        color: var(--text2);
+      }
+      .cluster-card .article-list {
+        list-style: none;
+        margin-top: 6px;
+      }
+      .cluster-card .article-list li {
+        padding: 4px 0;
+        font-size: 13px;
+        color: var(--text2);
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+      }
+      .cluster-card .article-list li::before {
+        content: "";
+      }
+      .source-tag {
+        font-size: 11px;
+        background: var(--bg3);
+        color: var(--text2);
+        padding: 1px 6px;
+        border-radius: 4px;
+        flex-shrink: 0;
+      }
+
+      /* Summary cards */
+      .summary-card {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 20px 24px;
+        margin-bottom: 16px;
+      }
+      .summary-card h3 {
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+      .summary-card .summary-text {
+        color: var(--text2);
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+      .summary-card .key-points {
+        list-style: disc inside;
+        font-size: 13px;
+      }
+      .summary-card .key-points li {
+        padding: 2px 0;
+      }
+      .summary-card .summary-meta {
+        display: flex;
+        gap: 12px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+      .summary-card .source-links {
+        margin-top: 10px;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .summary-card .source-links a {
+        font-size: 12px;
+        color: var(--accent);
+        background: var(--bg3);
+        padding: 2px 8px;
+        border-radius: 4px;
+        text-decoration: none;
+      }
+      .summary-card .source-links a:hover {
+        text-decoration: underline;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text2);
+        font-size: 14px;
+      }
+      .error-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--red);
+        font-size: 14px;
+      }
+
+      /* tooltip for PCA */
+      #pca-tooltip {
+        position: absolute;
+        display: none;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 6px 10px;
+        font-size: 12px;
+        color: var(--text);
+        pointer-events: none;
+        max-width: 320px;
+        z-index: 10;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      a {
+        color: var(--accent2);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>TrendRadar Pipeline Inspector</h1>
+      <div class="meta" id="meta-info">Loading...</div>
+    </header>
+
+    <nav class="tabs" id="tab-bar"></nav>
+
+    <div id="panels"></div>
+    <div id="pca-tooltip"></div>
+
+    <script>
+      const TAB_DEFS = [
+        { id: "items", label: "Items", key: "rssItems" },
+        { id: "deduped", label: "Deduped", key: "dedupedItems" },
+        { id: "embed", label: "Embeddings", key: "embeddings" },
+        { id: "clusters", label: "Clusters", key: "clusters" },
+        { id: "scored", label: "Scored Clusters", key: "scoredClusters" },
+        { id: "summary", label: "Summaries", key: "summaries" },
+      ];
+
+      let DATA = null;
+
+      async function init() {
+        try {
+          const res = await fetch("/api/snapshot");
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            document.getElementById("meta-info").textContent = "";
+            document.getElementById("panels").innerHTML =
+              `<div class="error-state">${err.error || "Failed to load snapshot"}</div>`;
+            return;
+          }
+          DATA = await res.json();
+        } catch (e) {
+          document.getElementById("panels").innerHTML =
+            `<div class="error-state">Could not connect to server</div>`;
+          return;
+        }
+
+        document.getElementById("meta-info").textContent =
+          `Snapshot: ${DATA.timestamp}`;
+
+        // Build tabs
+        const bar = document.getElementById("tab-bar");
+        const panels = document.getElementById("panels");
+
+        for (const def of TAB_DEFS) {
+          const count = DATA.steps[def.key]?.length ?? 0;
+          const tab = document.createElement("div");
+          tab.className = "tab";
+          tab.dataset.target = def.id;
+          tab.innerHTML = `${def.label}<span class="badge">${count}</span>`;
+          tab.onclick = () => switchTab(def.id);
+          bar.appendChild(tab);
+
+          const panel = document.createElement("div");
+          panel.className = "panel";
+          panel.id = `panel-${def.id}`;
+          panels.appendChild(panel);
+        }
+
+        // Render all panels
+        renderItems("panel-items", DATA.steps.rssItems, false);
+        renderItems("panel-deduped", DATA.steps.dedupedItems, true);
+        renderEmbeddings("panel-embed", DATA.steps.embeddings);
+        renderClusters("panel-clusters", DATA.steps.clusters);
+        renderScored("panel-scored", DATA.steps.scoredClusters);
+        renderSummaries("panel-summary", DATA.steps.summaries);
+
+        switchTab("items");
+      }
+
+      function switchTab(id) {
+        document
+          .querySelectorAll(".tab")
+          .forEach((t) =>
+            t.classList.toggle("active", t.dataset.target === id),
+          );
+        document
+          .querySelectorAll(".panel")
+          .forEach((p) => p.classList.toggle("active", p.id === `panel-${id}`));
+      }
+
+      /* --- Items table --- */
+      function renderItems(panelId, items, showDedupLabel) {
+        const panel = document.getElementById(panelId);
+        if (!items || items.length === 0) {
+          panel.innerHTML = '<div class="empty-state">No items</div>';
+          return;
+        }
+        let html = `<table class="items-table"><thead><tr>
+    <th>#</th><th>Title</th><th>Feed</th><th>Published</th><th>Summary</th>
+  </tr></thead><tbody>`;
+        for (let i = 0; i < items.length; i++) {
+          const it = items[i];
+          const title = it.url
+            ? `<a href="${esc(it.url)}" target="_blank">${esc(it.title)}</a>`
+            : esc(it.title);
+          const pub = it.publishedAt
+            ? new Date(it.publishedAt).toLocaleString()
+            : "";
+          html += `<tr>
+      <td>${i + 1}</td>
+      <td>${title}</td>
+      <td><span class="source-tag">${esc(it.feedName || it.feedId)}</span></td>
+      <td style="white-space:nowrap">${pub}</td>
+      <td class="summary-cell" title="${esc(it.summary || "")}">${esc(truncate(it.summary || "", 80))}</td>
+    </tr>`;
+        }
+        html += "</tbody></table>";
+        panel.innerHTML = html;
+      }
+
+      /* --- Embeddings --- */
+      function renderEmbeddings(panelId, embeddings) {
+        const panel = document.getElementById(panelId);
+        if (!embeddings || embeddings.length === 0) {
+          panel.innerHTML = '<div class="empty-state">No embeddings</div>';
+          return;
+        }
+        const dim = embeddings[0].vector.length;
+        const feeds = [...new Set(embeddings.map((e) => e.feedId))];
+
+        let html = '<div class="embed-stats">';
+        html += statCard("Items", embeddings.length);
+        html += statCard("Dimensions", dim);
+        html += statCard("Feeds", feeds.length);
+        html += "</div>";
+        html += '<canvas id="pca-canvas"></canvas>';
+        panel.innerHTML = html;
+
+        // Compute PCA and draw scatter
+        requestAnimationFrame(() => drawPCA(embeddings, feeds));
+      }
+
+      function statCard(label, value) {
+        return `<div class="stat-card"><div class="label">${label}</div><div class="value">${value}</div></div>`;
+      }
+
+      /* Simple 2-component PCA via power iteration */
+      function pca2d(vectors) {
+        const n = vectors.length;
+        const d = vectors[0].length;
+
+        // Mean center
+        const mean = new Float64Array(d);
+        for (const v of vectors) for (let j = 0; j < d; j++) mean[j] += v[j];
+        for (let j = 0; j < d; j++) mean[j] /= n;
+
+        const centered = vectors.map((v) => {
+          const c = new Float64Array(d);
+          for (let j = 0; j < d; j++) c[j] = v[j] - mean[j];
+          return c;
+        });
+
+        function computeComponent(data) {
+          // Power iteration to find top eigenvector of X^T X
+          let w = new Float64Array(d);
+          for (let j = 0; j < d; j++) w[j] = Math.random() - 0.5;
+
+          for (let iter = 0; iter < 50; iter++) {
+            // w_new = X^T (X w)
+            const xw = new Float64Array(n);
+            for (let i = 0; i < n; i++) {
+              let dot = 0;
+              for (let j = 0; j < d; j++) dot += data[i][j] * w[j];
+              xw[i] = dot;
+            }
+            const w_new = new Float64Array(d);
+            for (let i = 0; i < n; i++) {
+              for (let j = 0; j < d; j++) w_new[j] += data[i][j] * xw[i];
+            }
+            // Normalize
+            let norm = 0;
+            for (let j = 0; j < d; j++) norm += w_new[j] * w_new[j];
+            norm = Math.sqrt(norm);
+            if (norm === 0) break;
+            for (let j = 0; j < d; j++) w_new[j] /= norm;
+            w = w_new;
+          }
+          return w;
+        }
+
+        const pc1 = computeComponent(centered);
+
+        // Deflate: subtract projection onto pc1
+        const deflated = centered.map((v) => {
+          const proj = v.reduce((s, val, j) => s + val * pc1[j], 0);
+          const c = new Float64Array(d);
+          for (let j = 0; j < d; j++) c[j] = v[j] - proj * pc1[j];
+          return c;
+        });
+        const pc2 = computeComponent(deflated);
+
+        // Project
+        const coords = vectors.map((v, i) => ({
+          x: centered[i].reduce((s, val, j) => s + val * pc1[j], 0),
+          y: centered[i].reduce((s, val, j) => s + val * pc2[j], 0),
+        }));
+        return coords;
+      }
+
+      function drawPCA(embeddings, feeds) {
+        const canvas = document.getElementById("pca-canvas");
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = rect.width * devicePixelRatio;
+        canvas.height = rect.height * devicePixelRatio;
+        const ctx = canvas.getContext("2d");
+        ctx.scale(devicePixelRatio, devicePixelRatio);
+        const W = rect.width;
+        const H = rect.height;
+        const PAD = 40;
+
+        const coords = pca2d(embeddings.map((e) => e.vector));
+
+        let minX = Infinity,
+          maxX = -Infinity,
+          minY = Infinity,
+          maxY = -Infinity;
+        for (const c of coords) {
+          if (c.x < minX) minX = c.x;
+          if (c.x > maxX) maxX = c.x;
+          if (c.y < minY) minY = c.y;
+          if (c.y > maxY) maxY = c.y;
+        }
+        const rangeX = maxX - minX || 1;
+        const rangeY = maxY - minY || 1;
+
+        const COLORS = [
+          "#6c8aff",
+          "#51cf66",
+          "#ff922b",
+          "#ff6b6b",
+          "#cc5de8",
+          "#20c997",
+          "#fcc419",
+          "#f06595",
+          "#339af0",
+          "#a9e34b",
+          "#e599f7",
+          "#38d9a9",
+        ];
+        const feedColor = {};
+        feeds.forEach((f, i) => {
+          feedColor[f] = COLORS[i % COLORS.length];
+        });
+
+        // Draw dots
+        const points = [];
+        for (let i = 0; i < coords.length; i++) {
+          const sx = PAD + ((coords[i].x - minX) / rangeX) * (W - 2 * PAD);
+          const sy = PAD + ((coords[i].y - minY) / rangeY) * (H - 2 * PAD);
+          const color = feedColor[embeddings[i].feedId] || "#888";
+          ctx.beginPath();
+          ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.globalAlpha = 0.75;
+          ctx.fill();
+          points.push({
+            sx,
+            sy,
+            title: embeddings[i].title,
+            feed: embeddings[i].feedId,
+          });
+        }
+        ctx.globalAlpha = 1;
+
+        // Legend
+        let lx = PAD;
+        ctx.font = "11px sans-serif";
+        for (const f of feeds) {
+          ctx.fillStyle = feedColor[f];
+          ctx.fillRect(lx, H - 18, 10, 10);
+          ctx.fillStyle = "#9ba1b5";
+          ctx.fillText(f, lx + 14, H - 9);
+          lx += ctx.measureText(f).width + 28;
+          if (lx > W - 100) break;
+        }
+
+        // Hover tooltip
+        const tooltip = document.getElementById("pca-tooltip");
+        canvas.onmousemove = (e) => {
+          const cr = canvas.getBoundingClientRect();
+          const mx = e.clientX - cr.left;
+          const my = e.clientY - cr.top;
+          let found = null;
+          for (const p of points) {
+            const dx = mx - p.sx,
+              dy = my - p.sy;
+            if (dx * dx + dy * dy < 64) {
+              found = p;
+              break;
+            }
+          }
+          if (found) {
+            tooltip.style.display = "block";
+            tooltip.style.left = e.clientX + 12 + "px";
+            tooltip.style.top = e.clientY - 8 + "px";
+            tooltip.textContent = `[${found.feed}] ${found.title}`;
+          } else {
+            tooltip.style.display = "none";
+          }
+        };
+        canvas.onmouseleave = () => {
+          tooltip.style.display = "none";
+        };
+      }
+
+      /* --- Clusters --- */
+      function renderClusters(panelId, clusters) {
+        const panel = document.getElementById(panelId);
+        if (!clusters || clusters.length === 0) {
+          panel.innerHTML = '<div class="empty-state">No clusters</div>';
+          return;
+        }
+        let html = "";
+        for (const c of clusters) {
+          html += `<div class="cluster-card">
+      <div class="cluster-header">
+        <span class="cluster-title">${esc(c.primary.title)}</span>
+        <span class="pill pill-members">${c.memberCount} articles</span>
+      </div>
+      <ul class="article-list">`;
+          for (const r of c.related) {
+            const link = r.url
+              ? `<a href="${esc(r.url)}" target="_blank">${esc(r.title)}</a>`
+              : esc(r.title);
+            html += `<li><span class="source-tag">${esc(r.source)}</span> ${link}</li>`;
+          }
+          html += "</ul></div>";
+        }
+        panel.innerHTML = html;
+      }
+
+      /* --- Scored Clusters --- */
+      function renderScored(panelId, scored) {
+        const panel = document.getElementById(panelId);
+        if (!scored || scored.length === 0) {
+          panel.innerHTML = '<div class="empty-state">No scored clusters</div>';
+          return;
+        }
+        let html = "";
+        for (const c of scored) {
+          html += `<div class="cluster-card">
+      <div class="cluster-header">
+        <span class="cluster-title">${esc(c.primary.title)}</span>
+        <span class="pill pill-score">Score: ${c.score.toFixed(1)}</span>
+        <span class="pill pill-sources">${c.distinctSources} sources</span>
+        <span class="pill pill-mentions">${c.totalMentions} mentions</span>
+      </div>
+      <ul class="article-list">`;
+          for (const r of c.related) {
+            const link = r.url
+              ? `<a href="${esc(r.url)}" target="_blank">${esc(r.title)}</a>`
+              : esc(r.title);
+            html += `<li><span class="source-tag">${esc(r.source)}</span> ${link}</li>`;
+          }
+          html += "</ul></div>";
+        }
+        panel.innerHTML = html;
+      }
+
+      /* --- Summaries --- */
+      function renderSummaries(panelId, summaries) {
+        const panel = document.getElementById(panelId);
+        if (!summaries || summaries.length === 0) {
+          panel.innerHTML = '<div class="empty-state">No summaries</div>';
+          return;
+        }
+        let html = "";
+        for (const s of summaries) {
+          html += `<div class="summary-card">
+      <h3>${esc(s.headline)}</h3>
+      <p class="summary-text">${esc(s.summary)}</p>
+      <ul class="key-points">`;
+          for (const kp of s.keyPoints || []) {
+            html += `<li>${esc(kp)}</li>`;
+          }
+          html += '</ul><div class="summary-meta">';
+          if (s.importance != null)
+            html += `<span class="pill pill-score">Importance: ${(s.importance * 100).toFixed(0)}%</span>`;
+          html += "</div>";
+          if (s.sources && s.sources.length > 0) {
+            html += '<div class="source-links">';
+            for (const src of s.sources) {
+              html += `<a href="${esc(src.url)}" target="_blank">${esc(src.name)}</a>`;
+            }
+            html += "</div>";
+          }
+          html += "</div>";
+        }
+        panel.innerHTML = html;
+      }
+
+      /* --- Helpers --- */
+      function esc(s) {
+        if (!s) return "";
+        return s
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+      function truncate(s, n) {
+        return s.length > n ? s.slice(0, n) + "..." : s;
+      }
+
+      init();
+    </script>
+  </body>
+</html>

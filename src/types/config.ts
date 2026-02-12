@@ -171,6 +171,7 @@ export interface RuntimeConfig {
   ai: "on" | "off" | "config";
   mode: "daily" | "current" | "incremental" | "config";
   dedupThreshold?: number;
+  inspect?: boolean;
 }
 
 /**

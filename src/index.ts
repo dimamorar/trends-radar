@@ -4,9 +4,6 @@ import { applyRuntimeOverrides, loadConfig } from "./core/config";
 import { NewsAnalyzer } from "./core/newsAnalyzer";
 import { logger } from "./utils/logger";
 
-/**
- * Main entry point
- */
 async function main(): Promise<void> {
   const rawConfig = loadConfig();
   const config = applyRuntimeOverrides(rawConfig);

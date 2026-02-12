@@ -9,6 +9,7 @@ runtime:
   dryRun: false
   ai: "config" # on | off | config
   mode: "config" # daily | current | incremental | config
+  inspect: true
 
 rss:
   freshnessFilter:

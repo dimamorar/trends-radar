@@ -1,6 +1,10 @@
 import { AIAnalyzer, type AIAnalysisResult } from "../ai/index";
 import { EmbeddingService } from "../ai/embeddings";
-import { Clusterer, type ClassifiedArticle } from "../ai/clustering";
+import {
+  Clusterer,
+  type ClassifiedArticle,
+  type NewsCluster,
+} from "../ai/clustering";
 import { ClusterSummarizer, type ClusterSummary } from "../ai/summarizer";
 import { scoreAndFilterClusters, type ScoredCluster } from "../ai/scoring";
 import { AppContext } from "./context";
@@ -19,6 +23,8 @@ import {
   type ClusterReportTopic,
 } from "../notification/renderer";
 import { NotificationDispatcher } from "../notification/dispatcher";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import type { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
 
@@ -40,6 +46,53 @@ export interface AIPipelineResult {
   totalItems: number;
   dedupedItems: number;
   clusterCount: number;
+}
+
+/** Snapshot of each pipeline step for the inspector UI */
+export interface PipelineSnapshot {
+  timestamp: string;
+  steps: {
+    rssItems: Array<{
+      title: string;
+      url: string;
+      feedId: string;
+      feedName?: string;
+      publishedAt?: string;
+      summary?: string;
+    }>;
+    dedupedItems: Array<{
+      title: string;
+      url: string;
+      feedId: string;
+      feedName?: string;
+      publishedAt?: string;
+      summary?: string;
+    }>;
+    embeddings: Array<{ title: string; feedId: string; vector: number[] }>;
+    clusters: Array<{
+      id: string;
+      primary: { title: string; source: string; url?: string };
+      related: Array<{ title: string; source: string; url?: string }>;
+      memberCount: number;
+    }>;
+    scoredClusters: Array<{
+      id: string;
+      primary: { title: string; source: string; url?: string };
+      related: Array<{ title: string; source: string; url?: string }>;
+      score: number;
+      distinctSources: number;
+      totalMentions: number;
+    }>;
+    summaries: Array<{
+      clusterId: string;
+      headline: string;
+      summary: string;
+      keyPoints: string[];
+      perspectives: string[];
+      importance: number;
+      sources: Array<{ name: string; url: string }>;
+    }>;
+  };
 }
 
 /** RSS data object for storage */
@@ -458,6 +511,97 @@ export class NewsAnalyzer {
   }
 
   /**
+   * Build and save inspector snapshot to local file (when runtime.inspect is set).
+   */
+  private async saveInspectorSnapshot(options: {
+    rssItems: RssItem[];
+    dedupedItems: RssItem[];
+    allEmbeddings: number[][];
+    clusters: NewsCluster[];
+    scoredClusters: ScoredCluster[];
+    summaries: ClusterSummary[];
+  }): Promise<void> {
+    const {
+      rssItems,
+      dedupedItems,
+      allEmbeddings,
+      clusters,
+      scoredClusters,
+      summaries,
+    } = options;
+    const snapshot: PipelineSnapshot = {
+      timestamp: new Date().toISOString(),
+      steps: {
+        rssItems: rssItems.map((item) => ({
+          title: item.title,
+          url: item.url,
+          feedId: item.feedId,
+          feedName: item.feedName,
+          publishedAt: item.publishedAt,
+          summary: item.summary,
+        })),
+        dedupedItems: dedupedItems.map((item) => ({
+          title: item.title,
+          url: item.url,
+          feedId: item.feedId,
+          feedName: item.feedName,
+          publishedAt: item.publishedAt,
+          summary: item.summary,
+        })),
+        embeddings: dedupedItems.map((item, i) => ({
+          title: item.title,
+          feedId: item.feedId,
+          vector: allEmbeddings[i],
+        })),
+        clusters: clusters.map((c) => ({
+          id: c.id,
+          primary: {
+            title: c.primary.title,
+            source: c.primary.source,
+            url: c.primary.url,
+          },
+          related: c.related.map((r) => ({
+            title: r.title,
+            source: r.source,
+            url: r.url,
+          })),
+          memberCount: c.memberCount,
+        })),
+        scoredClusters: scoredClusters.map((sc) => ({
+          id: sc.id,
+          primary: {
+            title: sc.primary.title,
+            source: sc.primary.source,
+            url: sc.primary.url,
+          },
+          related: sc.related.map((r) => ({
+            title: r.title,
+            source: r.source,
+            url: r.url,
+          })),
+          score: sc.score,
+          distinctSources: sc.distinctSources,
+          totalMentions: sc.totalMentions,
+        })),
+        summaries: summaries.map((s) => ({
+          clusterId: s.clusterId,
+          headline: s.headline,
+          summary: s.summary,
+          keyPoints: s.keyPoints,
+          perspectives: s.perspectives,
+          importance: s.importance,
+          sources: s.sources,
+        })),
+      },
+    };
+    const dir = this.ctx.config.storage?.local?.dataDir ?? "output";
+    const snapshotPath = `${dir}/pipeline-snapshot.json`;
+    await mkdir(dirname(snapshotPath), { recursive: true });
+    await writeFile(snapshotPath, JSON.stringify(snapshot));
+    logger.info(`[Pipeline] Inspector snapshot saved to ${snapshotPath}`);
+  }
+
+  /**
    * Run AI pipeline: dedup -> embed (with cache) -> cluster -> score -> summarize
    * When Convex is enabled, caches embeddings and persists clusters/summaries.
    */
@@ -697,6 +841,17 @@ export class NewsAnalyzer {
         `[Pipeline] Complete: ${topics.length} topics from ${rssItems.length} items`,
       );
 
+      if (this.ctx.config.runtime?.inspect) {
+        await this.saveInspectorSnapshot({
+          rssItems,
+          dedupedItems,
+          allEmbeddings,
+          clusters,
+          scoredClusters,
+          summaries,
+        });
+      }
+
       return {
         topics,
         clusters: scoredClusters,
@@ -777,6 +932,7 @@ export class NewsAnalyzer {
 
         logger.info("AI pipeline analysis complete");
       }
+      process.exit(0);
     } catch (error) {
       logger.error({ error }, "Analysis pipeline error");
       throw error;

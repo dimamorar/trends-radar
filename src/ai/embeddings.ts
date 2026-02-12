@@ -7,8 +7,8 @@
 // Integrated into NewsAnalyzer.runAIPipeline() pipeline
 // TODO: Add caching for embeddings to reduce API costs
 
-import { embedMany, type EmbeddingModel } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
+import { embedMany, type EmbeddingModel } from "ai";
+import { createOpenAI } from "@ai-sdk/openai";
 
 /**
  * Embedding service configuration
@@ -22,16 +22,19 @@ export interface EmbeddingServiceConfig {
 /**
  * Parse model string to extract provider and model ID
  */
-function parseModelString(model: string): { provider: string; modelId: string } {
-  if (model.includes('/')) {
-    const [provider, ...rest] = model.split('/');
+function parseModelString(model: string): {
+  provider: string;
+  modelId: string;
+} {
+  if (model.includes("/")) {
+    const [provider, ...rest] = model.split("/");
     return {
       provider: provider.toLowerCase(),
-      modelId: rest.join('/'),
+      modelId: rest.join("/"),
     };
   }
   return {
-    provider: 'openai',
+    provider: "openai",
     modelId: model,
   };
 }
@@ -62,7 +65,11 @@ export class EmbeddingService {
   constructor(config: EmbeddingServiceConfig) {
     this.modelString = config.model;
     const { modelId } = parseModelString(config.model);
-    this.model = createEmbeddingModelInstance(modelId, config.apiKey, config.apiBase);
+    this.model = createEmbeddingModelInstance(
+      modelId,
+      config.apiKey,
+      config.apiBase,
+    );
   }
 
   /**
@@ -85,9 +92,15 @@ export class EmbeddingService {
       return [];
     }
 
+    // Truncate texts to stay within model token limits (~8k tokens ≈ 6000 chars safe cutoff)
+    const MAX_CHARS = 6000;
+    const truncated = texts.map((t) =>
+      t.length > MAX_CHARS ? t.slice(0, MAX_CHARS) : t,
+    );
+
     const { embeddings } = await embedMany({
       model: this.model,
-      values: texts,
+      values: truncated,
     });
 
     return embeddings;
@@ -129,7 +142,11 @@ export class EmbeddingService {
    * @param threshold - Minimum similarity score (default 0.85)
    * @returns Array of indices with similarity >= threshold
    */
-  findSimilar(embedding: number[], corpus: number[][], threshold = 0.85): number[] {
+  findSimilar(
+    embedding: number[],
+    corpus: number[][],
+    threshold = 0.85,
+  ): number[] {
     const similarIndices: number[] = [];
 
     for (let i = 0; i < corpus.length; i++) {
@@ -149,7 +166,9 @@ export class EmbeddingService {
    */
   computeSimilarityMatrix(embeddings: number[][]): number[][] {
     const n = embeddings.length;
-    const matrix: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
+    const matrix: number[][] = Array.from({ length: n }, () =>
+      Array(n).fill(0),
+    );
 
     for (let i = 0; i < n; i++) {
       matrix[i][i] = 1;
@@ -174,6 +193,8 @@ export class EmbeddingService {
 /**
  * Create an embedding service from config
  */
-export function createEmbeddingService(config: EmbeddingServiceConfig): EmbeddingService {
+export function createEmbeddingService(
+  config: EmbeddingServiceConfig,
+): EmbeddingService {
   return new EmbeddingService(config);
 }

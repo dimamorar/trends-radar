@@ -289,6 +289,7 @@ export const ConfigSchema = z.object({
         .min(0, "dedup_threshold must be between 0 and 1")
         .max(1, "dedup_threshold must be between 0 and 1")
         .optional(),
+      inspect: z.boolean().default(false),
     })
     .optional(),
 });
