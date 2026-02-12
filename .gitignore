@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Output data (can be large)
+output/news/*.db
+output/html/*.html
+output/rss/*.db
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+coverage/
+
+# Bun lockfile (can be committed for reproducible builds)
+# bun.lock
+
+# Cache
+.cache/
+*.tsbuildinfo
+
+# Telegram session
+*.session
+*.session-journal
