@@ -1,4 +1,3 @@
-import { AIAnalyzer, type AIAnalysisResult } from "../ai/index";
 import { EmbeddingService } from "../ai/embeddings";
 import {
   Clusterer,
@@ -8,14 +7,9 @@ import {
 import { ClusterSummarizer, type ClusterSummary } from "../ai/summarizer";
 import { scoreAndFilterClusters, type ScoredCluster } from "../ai/scoring";
 import { AppContext } from "./context";
-import {
-  deduplicateAcrossKeywords,
-  deduplicateRssItems,
-  deduplicateStats,
-  type DedupConfig,
-} from "./dedup";
+import { deduplicateRssItems } from "./dedup";
 import { RssFetcher, type RssFetchResult } from "../crawler/index";
-import type { Config, RssItem, StatisticsEntry } from "../types/index";
+import type { Config, RssItem } from "../types/index";
 import { logger } from "../utils/logger";
 import { isSameDateInTimezone } from "../utils/time";
 import {
@@ -118,8 +112,6 @@ export function isReportMode(value: unknown): value is ReportMode {
 export class NewsAnalyzer {
   private ctx: AppContext;
   private aiEnabled: boolean;
-  private aiAnalyzer: AIAnalyzer | null = null;
-  private dedupConfig: DedupConfig;
 
   constructor(config: Config) {
     if (config.runtime?.verbose) {
@@ -128,12 +120,6 @@ export class NewsAnalyzer {
 
     this.ctx = new AppContext(config);
 
-    //TODO: do we need this
-    // Configure deduplication
-    this.dedupConfig = {
-      similarityThreshold: config.runtime?.dedupThreshold,
-      verbose: config.runtime?.verbose,
-    };
     // Initialize AI if enabled (after runtime overrides applied)
     this.aiEnabled = config.aiAnalysis.enabled;
 
@@ -144,20 +130,6 @@ export class NewsAnalyzer {
         );
         this.aiEnabled = false;
       } else {
-        this.aiAnalyzer = new AIAnalyzer(
-          {
-            model: config.ai.model,
-            apiKey: config.ai.apiKey,
-            apiBase: config.ai.apiBase,
-            timeout: config.ai.timeout,
-            fallbackModels: config.ai.fallbackModels,
-            language: config.aiAnalysis.language,
-            promptFile: config.aiAnalysis.promptFile,
-            maxNews: config.aiAnalysis.maxNews,
-            useStructuredOutput: config.aiAnalysis.useStructuredOutput,
-          },
-          () => this.ctx.getTime(),
-        );
       }
     } else {
       logger.info("AI analysis disabled");
@@ -332,71 +304,6 @@ export class NewsAnalyzer {
     }
 
     return items;
-  }
-
-  /**
-   * Run analysis pipeline
-   * Note: Frequency words logic has been removed - returns empty stats
-   */
-  private async runAnalysisPipeline(options: {
-    rssItems: RssItem[] | null;
-    rssNewItems: RssItem[] | null;
-  }): Promise<{
-    stats: StatisticsEntry[];
-    totalTitles: number;
-  }> {
-    // Frequency words removed - return empty stats
-    // AI analysis will work with RSS items directly
-    return { stats: [], totalTitles: options.rssItems?.length ?? 0 };
-  }
-
-  /**
-   * Run AI analysis on the statistics
-   */
-  private async runAIAnalysis(options: {
-    stats: StatisticsEntry[];
-    rssItems: RssItem[] | null;
-    reportType: string;
-  }): Promise<AIAnalysisResult | null> {
-    if (!this.aiEnabled || !this.aiAnalyzer) {
-      return null;
-    }
-
-    const { stats, rssItems, reportType } = options;
-
-    // Skip if no content to analyze
-    const totalItems =
-      stats.reduce((sum, s) => sum + s.titles.length, 0) +
-      (rssItems?.length ?? 0);
-    if (totalItems === 0) {
-      logger.info("[AI] No content to analyze, skipping AI analysis");
-      return null;
-    }
-
-    try {
-      logger.info(`[AI] Starting analysis of ${totalItems} items...`);
-
-      const result = await this.aiAnalyzer.analyze({
-        stats,
-        rssItems,
-        reportMode: this.ctx.reportMode,
-        reportType,
-        keywords: stats.map((s) => s.word),
-      });
-
-      if (result.success) {
-        logger.info(
-          `[AI] Analysis complete: ${result.analyzedNews}/${result.totalNews} items analyzed`,
-        );
-      } else {
-        logger.error(`[AI] Analysis failed: ${result.error}`);
-      }
-
-      return result;
-    } catch (error) {
-      logger.error({ error }, "[AI] Analysis error");
-      return null;
-    }
   }
 
   /**
