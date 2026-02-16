@@ -167,9 +167,96 @@
         border: 1px solid var(--border);
         border-radius: var(--radius);
         display: block;
+        cursor: crosshair;
         width: 100%;
         max-width: 900px;
         height: 500px;
+      }
+      .embed-section-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text2);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin: 24px 0 10px;
+      }
+      .embed-table-wrap {
+        max-height: 420px;
+        overflow-y: auto;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        margin-bottom: 24px;
+      }
+      .embed-table-wrap .items-table tr {
+        cursor: pointer;
+        transition: background 0.12s;
+      }
+      .embed-table-wrap .items-table tr.embed-highlight td {
+        background: #2a3058;
+      }
+      .embed-table-wrap .items-table td.vec-cell {
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 11px;
+        color: var(--text2);
+        white-space: nowrap;
+      }
+      .embed-table-wrap .items-table td.pca-cell {
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .neighbors-cell {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .neighbor-tag {
+        font-size: 10px;
+        background: var(--bg3);
+        color: var(--accent);
+        padding: 1px 6px;
+        border-radius: 4px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .neighbor-tag:hover {
+        background: var(--accent2);
+        color: #fff;
+      }
+      .vector-toggle {
+        font-size: 11px;
+        color: var(--accent);
+        cursor: pointer;
+        user-select: none;
+        border: none;
+        background: none;
+        padding: 0;
+      }
+      .vector-toggle:hover {
+        text-decoration: underline;
+      }
+      .vector-preview {
+        display: none;
+        margin-top: 6px;
+        padding: 8px 12px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-family: "SF Mono", Menlo, Consolas, monospace;
+        font-size: 11px;
+        color: var(--text2);
+        max-height: 120px;
+        overflow-y: auto;
+        word-break: break-all;
+      }
+      .vector-preview.open {
+        display: block;
+      }
+      .sparkline-canvas {
+        display: block;
+        height: 24px;
+        width: 120px;
+        border-radius: 3px;
       }
 
       /* Cluster / scored cards */
@@ -407,6 +494,13 @@
         document
           .querySelectorAll(".panel")
           .forEach((p) => p.classList.toggle("active", p.id === `panel-${id}`));
+
+        if (id === 'embed' && _pcaState && !_pcaState.drawn) {
+          _pcaState.drawn = true;
+          requestAnimationFrame(() => {
+            drawPCA(_pcaState.embeddings, _pcaState.feeds, _pcaState.coords);
+          });
+        }
       }
 
       /* --- Items table --- */
@@ -440,6 +534,60 @@
       }
 
       /* --- Embeddings --- */
+
+      let _pcaState = null;
+
+      function l2Norm(v) {
+        let sum = 0;
+        for (let i = 0; i < v.length; i++) sum += v[i] * v[i];
+        return Math.sqrt(sum);
+      }
+
+      function cosineSim(a, b) {
+        let dot = 0, na = 0, nb = 0;
+        for (let i = 0; i < a.length; i++) {
+          dot += a[i] * b[i];
+          na += a[i] * a[i];
+          nb += b[i] * b[i];
+        }
+        const denom = Math.sqrt(na) * Math.sqrt(nb);
+        return denom === 0 ? 0 : dot / denom;
+      }
+
+      function computeNeighbors(embeddings, k) {
+        const n = embeddings.length;
+        const result = new Array(n);
+        for (let i = 0; i < n; i++) {
+          const sims = [];
+          for (let j = 0; j < n; j++) {
+            if (i === j) continue;
+            sims.push({ idx: j, sim: cosineSim(embeddings[i].vector, embeddings[j].vector) });
+          }
+          sims.sort((a, b) => b.sim - a.sim);
+          result[i] = sims.slice(0, k);
+        }
+        return result;
+      }
+
+      function buildClusterMap(embeddings, clusters) {
+        const map = new Array(embeddings.length).fill(-1);
+        if (!clusters || clusters.length === 0) return map;
+        const titleIndex = {};
+        for (let i = 0; i < embeddings.length; i++) {
+          titleIndex[embeddings[i].title] = i;
+        }
+        for (let ci = 0; ci < clusters.length; ci++) {
+          const c = clusters[ci];
+          const idx = titleIndex[c.primary.title];
+          if (idx != null) map[idx] = ci;
+          for (const r of c.related) {
+            const ri = titleIndex[r.title];
+            if (ri != null) map[ri] = ci;
+          }
+        }
+        return map;
+      }
+
       function renderEmbeddings(panelId, embeddings) {
         const panel = document.getElementById(panelId);
         if (!embeddings || embeddings.length === 0) {
@@ -448,17 +596,167 @@
         }
         const dim = embeddings[0].vector.length;
         const feeds = [...new Set(embeddings.map((e) => e.feedId))];
+        const coords = pca2d(embeddings.map((e) => e.vector));
+        const norms = embeddings.map((e) => l2Norm(e.vector));
+        const neighbors = computeNeighbors(embeddings, 3);
+        const clusters = DATA.steps.clusters || [];
+        const clusterMap = buildClusterMap(embeddings, clusters);
+        const numClusters = clusters.length;
+        const clustered = clusterMap.filter((c) => c >= 0).length;
+
+        const avgNorm = (norms.reduce((a, b) => a + b, 0) / norms.length).toFixed(3);
 
         let html = '<div class="embed-stats">';
         html += statCard("Items", embeddings.length);
         html += statCard("Dimensions", dim);
         html += statCard("Feeds", feeds.length);
-        html += "</div>";
+        html += statCard("Clusters", numClusters);
+        html += statCard("Clustered", `${clustered}/${embeddings.length}`);
+        html += statCard("Avg Norm", avgNorm);
+        html += '</div>';
+
+        html += '<div style="display:flex;align-items:center;gap:16px;margin-bottom:10px">';
+        html += '<span class="embed-section-title" style="margin:0">PCA 2D Projection</span>';
+        html += '<label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:6px;cursor:pointer">';
+        html += '<span>Color by:</span>';
+        html += '<select id="pca-color-mode" style="background:var(--bg3);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:2px 8px;font-size:12px">';
+        html += '<option value="cluster" selected>Cluster</option>';
+        html += '<option value="feed">Feed</option>';
+        html += '</select></label></div>';
         html += '<canvas id="pca-canvas"></canvas>';
+
+        html += '<div class="embed-section-title">Per-Item Embedding Details</div>';
+        html += '<div class="embed-table-wrap"><table class="items-table" id="embed-detail-table"><thead><tr>';
+        html += '<th>#</th><th>Title</th><th>Feed</th><th>Cluster</th><th>Vector</th><th>PCA (x, y)</th><th>Nearest Neighbors</th>';
+        html += '</tr></thead><tbody>';
+
+        for (let i = 0; i < embeddings.length; i++) {
+          const e = embeddings[i];
+          const title = e.url
+            ? `<a href="${esc(e.url)}" target="_blank">${esc(e.title)}</a>`
+            : esc(e.title);
+          const normStr = norms[i].toFixed(4);
+          const pcaX = coords[i].x.toFixed(3);
+          const pcaY = coords[i].y.toFixed(3);
+          const ci = clusterMap[i];
+          const clusterLabel = ci >= 0
+            ? `<span class="pill pill-members" style="font-size:10px">C${ci}</span> <small style="color:var(--text2)">${esc(truncate(clusters[ci].primary.title, 30))}</small>`
+            : '<span style="color:var(--text2);font-size:11px">unclustered</span>';
+
+          let neighborsHtml = '<div class="neighbors-cell">';
+          for (const nb of neighbors[i]) {
+            const nbTitle = truncate(embeddings[nb.idx].title, 30);
+            neighborsHtml += `<span class="neighbor-tag" data-idx="${nb.idx}" title="${esc(embeddings[nb.idx].title)} (sim: ${nb.sim.toFixed(4)})">#${nb.idx} ${esc(nbTitle)} <small>${nb.sim.toFixed(2)}</small></span>`;
+          }
+          neighborsHtml += '</div>';
+
+          html += `<tr data-embed-idx="${i}">`;
+          html += `<td>${i}</td>`;
+          html += `<td>${title}`;
+          if (e.summary) html += `<br><small style="color:var(--text2)">${esc(truncate(e.summary, 80))}</small>`;
+          html += `</td>`;
+          html += `<td><span class="source-tag">${esc(e.feedId)}</span></td>`;
+          html += `<td>${clusterLabel}</td>`;
+          html += `<td class="vec-cell">${dim}d &middot; norm ${normStr} <button class="vector-toggle" data-vec-idx="${i}">show</button><div class="vector-preview" id="vec-preview-${i}"><canvas class="sparkline-canvas" id="sparkline-${i}"></canvas><div id="vec-nums-${i}" style="margin-top:4px"></div></div></td>`;
+          html += `<td class="pca-cell">${pcaX}, ${pcaY}</td>`;
+          html += `<td>${neighborsHtml}</td>`;
+          html += '</tr>';
+        }
+
+        html += '</tbody></table></div>';
         panel.innerHTML = html;
 
-        // Compute PCA and draw scatter
-        requestAnimationFrame(() => drawPCA(embeddings, feeds));
+        _pcaState = { embeddings, feeds, coords, norms, neighbors, clusterMap, clusters, colorMode: 'cluster', drawn: false };
+
+        bindEmbedTableEvents(embeddings);
+
+        const colorSelect = document.getElementById('pca-color-mode');
+        if (colorSelect) {
+          colorSelect.onchange = () => {
+            _pcaState.colorMode = colorSelect.value;
+            drawPCA(_pcaState.embeddings, _pcaState.feeds, _pcaState.coords);
+          };
+        }
+      }
+
+      function bindEmbedTableEvents(embeddings) {
+        const table = document.getElementById('embed-detail-table');
+        if (!table) return;
+
+        table.querySelectorAll('.vector-toggle').forEach((btn) => {
+          btn.onclick = (ev) => {
+            ev.stopPropagation();
+            const idx = parseInt(btn.dataset.vecIdx);
+            const preview = document.getElementById(`vec-preview-${idx}`);
+            const isOpen = preview.classList.toggle('open');
+            btn.textContent = isOpen ? 'hide' : 'show';
+            if (isOpen) renderVectorPreview(idx, embeddings[idx].vector);
+          };
+        });
+
+        table.querySelectorAll('tr[data-embed-idx]').forEach((row) => {
+          row.onclick = () => {
+            const idx = parseInt(row.dataset.embedIdx);
+            highlightEmbedItem(idx);
+          };
+        });
+
+        table.querySelectorAll('.neighbor-tag').forEach((tag) => {
+          tag.onclick = (ev) => {
+            ev.stopPropagation();
+            const idx = parseInt(tag.dataset.idx);
+            highlightEmbedItem(idx);
+          };
+        });
+      }
+
+      function renderVectorPreview(idx, vector) {
+        const canvas = document.getElementById(`sparkline-${idx}`);
+        if (canvas) {
+          const rect = canvas.getBoundingClientRect();
+          canvas.width = rect.width * devicePixelRatio;
+          canvas.height = rect.height * devicePixelRatio;
+          const ctx = canvas.getContext('2d');
+          ctx.scale(devicePixelRatio, devicePixelRatio);
+          const W = rect.width;
+          const H = rect.height;
+
+          let min = Infinity, max = -Infinity;
+          for (const v of vector) { if (v < min) min = v; if (v > max) max = v; }
+          const range = max - min || 1;
+
+          ctx.strokeStyle = 'var(--accent)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (let i = 0; i < vector.length; i++) {
+            const x = (i / (vector.length - 1)) * W;
+            const y = H - ((vector[i] - min) / range) * H;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.strokeStyle = '#6c8aff';
+          ctx.stroke();
+        }
+
+        const numsEl = document.getElementById(`vec-nums-${idx}`);
+        if (numsEl) {
+          const first20 = vector.slice(0, 20).map((v) => v.toFixed(4)).join(', ');
+          numsEl.textContent = `[${first20}${vector.length > 20 ? ', ...' : ''}] (${vector.length} dims)`;
+        }
+      }
+
+      function highlightEmbedItem(idx) {
+        document.querySelectorAll('#embed-detail-table tr.embed-highlight').forEach((r) => { r.classList.remove('embed-highlight'); });
+
+        const row = document.querySelector(`#embed-detail-table tr[data-embed-idx="${idx}"]`);
+        if (row) {
+          row.classList.add('embed-highlight');
+          row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        if (_pcaState) {
+          drawPCA(_pcaState.embeddings, _pcaState.feeds, _pcaState.coords, idx);
+        }
       }
 
       function statCard(label, value) {
@@ -470,7 +768,6 @@
         const n = vectors.length;
         const d = vectors[0].length;
 
-        // Mean center
         const mean = new Float64Array(d);
         for (const v of vectors) for (let j = 0; j < d; j++) mean[j] += v[j];
         for (let j = 0; j < d; j++) mean[j] /= n;
@@ -482,12 +779,10 @@
         });
 
         function computeComponent(data) {
-          // Power iteration to find top eigenvector of X^T X
           let w = new Float64Array(d);
           for (let j = 0; j < d; j++) w[j] = Math.random() - 0.5;
 
           for (let iter = 0; iter < 50; iter++) {
-            // w_new = X^T (X w)
             const xw = new Float64Array(n);
             for (let i = 0; i < n; i++) {
               let dot = 0;
@@ -498,7 +793,6 @@
             for (let i = 0; i < n; i++) {
               for (let j = 0; j < d; j++) w_new[j] += data[i][j] * xw[i];
             }
-            // Normalize
             let norm = 0;
             for (let j = 0; j < d; j++) norm += w_new[j] * w_new[j];
             norm = Math.sqrt(norm);
@@ -511,7 +805,6 @@
 
         const pc1 = computeComponent(centered);
 
-        // Deflate: subtract projection onto pc1
         const deflated = centered.map((v) => {
           const proj = v.reduce((s, val, j) => s + val * pc1[j], 0);
           const c = new Float64Array(d);
@@ -520,7 +813,6 @@
         });
         const pc2 = computeComponent(deflated);
 
-        // Project
         const coords = vectors.map((v, i) => ({
           x: centered[i].reduce((s, val, j) => s + val * pc1[j], 0),
           y: centered[i].reduce((s, val, j) => s + val * pc2[j], 0),
@@ -528,7 +820,27 @@
         return coords;
       }
 
-      function drawPCA(embeddings, feeds) {
+      function convexHull(pts) {
+        if (pts.length < 3) return pts.slice();
+        pts = pts.slice().sort((a, b) => a.sx - b.sx || a.sy - b.sy);
+        const cross = (O, A, B) => (A.sx - O.sx) * (B.sy - O.sy) - (A.sy - O.sy) * (B.sx - O.sx);
+        const lower = [];
+        for (const p of pts) {
+          while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+          lower.push(p);
+        }
+        const upper = [];
+        for (let i = pts.length - 1; i >= 0; i--) {
+          const p = pts[i];
+          while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+          upper.push(p);
+        }
+        upper.pop();
+        lower.pop();
+        return lower.concat(upper);
+      }
+
+      function drawPCA(embeddings, feeds, coords, highlightIdx) {
         const canvas = document.getElementById("pca-canvas");
         if (!canvas) return;
         const rect = canvas.getBoundingClientRect();
@@ -540,12 +852,12 @@
         const H = rect.height;
         const PAD = 40;
 
-        const coords = pca2d(embeddings.map((e) => e.vector));
+        const st = _pcaState || {};
+        const colorMode = st.colorMode || 'cluster';
+        const clusterMap = st.clusterMap || [];
+        const clusters = st.clusters || [];
 
-        let minX = Infinity,
-          maxX = -Infinity,
-          minY = Infinity,
-          maxY = -Infinity;
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
         for (const c of coords) {
           if (c.x < minX) minX = c.x;
           if (c.x > maxX) maxX = c.x;
@@ -556,57 +868,185 @@
         const rangeY = maxY - minY || 1;
 
         const COLORS = [
-          "#6c8aff",
-          "#51cf66",
-          "#ff922b",
-          "#ff6b6b",
-          "#cc5de8",
-          "#20c997",
-          "#fcc419",
-          "#f06595",
-          "#339af0",
-          "#a9e34b",
-          "#e599f7",
-          "#38d9a9",
+          "#6c8aff", "#51cf66", "#ff922b", "#ff6b6b", "#cc5de8",
+          "#20c997", "#fcc419", "#f06595", "#339af0", "#a9e34b",
+          "#e599f7", "#38d9a9",
         ];
+        const UNCLUSTERED_COLOR = '#555';
+
         const feedColor = {};
-        feeds.forEach((f, i) => {
-          feedColor[f] = COLORS[i % COLORS.length];
+        feeds.forEach((f, i) => { feedColor[f] = COLORS[i % COLORS.length]; });
+
+        function getColor(i) {
+          if (colorMode === 'cluster') {
+            const ci = clusterMap[i];
+            return ci >= 0 ? COLORS[ci % COLORS.length] : UNCLUSTERED_COLOR;
+          }
+          return feedColor[embeddings[i].feedId] || "#888";
+        }
+
+        ctx.fillStyle = '#1a1d27';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.strokeStyle = '#2e3348';
+        ctx.lineWidth = 0.5;
+        for (let t = 0; t <= 4; t++) {
+          const x = PAD + (t / 4) * (W - 2 * PAD);
+          const y = PAD + (t / 4) * (H - 2 * PAD);
+          ctx.beginPath(); ctx.moveTo(x, PAD); ctx.lineTo(x, H - PAD); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
+        }
+
+        const toScreen = (i) => ({
+          sx: PAD + ((coords[i].x - minX) / rangeX) * (W - 2 * PAD),
+          sy: PAD + ((coords[i].y - minY) / rangeY) * (H - 2 * PAD),
         });
 
-        // Draw dots
+        if (colorMode === 'cluster' && clusters.length > 0) {
+          const clusterPoints = {};
+          for (let i = 0; i < coords.length; i++) {
+            const ci = clusterMap[i];
+            if (ci < 0) continue;
+            if (!clusterPoints[ci]) clusterPoints[ci] = [];
+            const s = toScreen(i);
+            clusterPoints[ci].push({ sx: s.sx, sy: s.sy, idx: i });
+          }
+
+          for (const ciStr of Object.keys(clusterPoints)) {
+            const ci = parseInt(ciStr);
+            const pts = clusterPoints[ci];
+            const color = COLORS[ci % COLORS.length];
+
+            if (pts.length >= 3) {
+              const hull = convexHull(pts);
+              const hullPad = 14;
+              const cx = pts.reduce((s, p) => s + p.sx, 0) / pts.length;
+              const cy = pts.reduce((s, p) => s + p.sy, 0) / pts.length;
+
+              ctx.beginPath();
+              for (let h = 0; h < hull.length; h++) {
+                const dx = hull[h].sx - cx;
+                const dy = hull[h].sy - cy;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                const px = hull[h].sx + (dx / dist) * hullPad;
+                const py = hull[h].sy + (dy / dist) * hullPad;
+                if (h === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+              }
+              ctx.closePath();
+              ctx.fillStyle = color;
+              ctx.globalAlpha = 0.07;
+              ctx.fill();
+              ctx.globalAlpha = 0.35;
+              ctx.strokeStyle = color;
+              ctx.lineWidth = 1.5;
+              ctx.setLineDash([6, 4]);
+              ctx.stroke();
+              ctx.setLineDash([]);
+              ctx.globalAlpha = 1;
+
+              ctx.font = 'bold 10px sans-serif';
+              ctx.fillStyle = color;
+              ctx.globalAlpha = 0.7;
+              ctx.fillText(`C${ci}`, cx - 6, cy - Math.max(...pts.map((p) => Math.abs(p.sy - cy))) - 10);
+              ctx.globalAlpha = 1;
+            } else if (pts.length === 2) {
+              ctx.beginPath();
+              ctx.moveTo(pts[0].sx, pts[0].sy);
+              ctx.lineTo(pts[1].sx, pts[1].sy);
+              ctx.strokeStyle = color;
+              ctx.globalAlpha = 0.25;
+              ctx.lineWidth = 1;
+              ctx.setLineDash([4, 4]);
+              ctx.stroke();
+              ctx.setLineDash([]);
+              ctx.globalAlpha = 1;
+              const mx = (pts[0].sx + pts[1].sx) / 2;
+              const my = (pts[0].sy + pts[1].sy) / 2;
+              ctx.font = 'bold 10px sans-serif';
+              ctx.fillStyle = color;
+              ctx.globalAlpha = 0.7;
+              ctx.fillText(`C${ci}`, mx + 8, my - 8);
+              ctx.globalAlpha = 1;
+            }
+          }
+        }
+
         const points = [];
         for (let i = 0; i < coords.length; i++) {
-          const sx = PAD + ((coords[i].x - minX) / rangeX) * (W - 2 * PAD);
-          const sy = PAD + ((coords[i].y - minY) / rangeY) * (H - 2 * PAD);
-          const color = feedColor[embeddings[i].feedId] || "#888";
+          const s = toScreen(i);
+          const color = getColor(i);
+          const isHighlight = highlightIdx === i;
+          const isUnclustered = colorMode === 'cluster' && clusterMap[i] < 0;
           ctx.beginPath();
-          ctx.arc(sx, sy, 4, 0, Math.PI * 2);
+          ctx.arc(s.sx, s.sy, isHighlight ? 8 : 4, 0, Math.PI * 2);
           ctx.fillStyle = color;
-          ctx.globalAlpha = 0.75;
+          ctx.globalAlpha = isHighlight ? 1 : (isUnclustered ? 0.3 : 0.8);
           ctx.fill();
-          points.push({
-            sx,
-            sy,
-            title: embeddings[i].title,
-            feed: embeddings[i].feedId,
-          });
+
+          if (isHighlight) {
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.lineWidth = 1;
+            ctx.font = '11px sans-serif';
+            ctx.fillStyle = '#fff';
+            ctx.globalAlpha = 1;
+            const ci = clusterMap[i];
+            const clLabel = ci >= 0 ? ` [C${ci}]` : '';
+            ctx.fillText(`#${i}${clLabel} ${truncate(embeddings[i].title, 35)}`, s.sx + 12, s.sy + 4);
+          }
+
+          points.push({ sx: s.sx, sy: s.sy, idx: i, title: embeddings[i].title, feed: embeddings[i].feedId, cluster: clusterMap[i] });
         }
         ctx.globalAlpha = 1;
 
-        // Legend
-        let lx = PAD;
-        ctx.font = "11px sans-serif";
-        for (const f of feeds) {
-          ctx.fillStyle = feedColor[f];
-          ctx.fillRect(lx, H - 18, 10, 10);
-          ctx.fillStyle = "#9ba1b5";
-          ctx.fillText(f, lx + 14, H - 9);
-          lx += ctx.measureText(f).width + 28;
-          if (lx > W - 100) break;
+        if (highlightIdx != null && st.neighbors) {
+          const nb = st.neighbors[highlightIdx];
+          if (nb) {
+            for (const n of nb) {
+              const from = points[highlightIdx];
+              const to = points[n.idx];
+              ctx.beginPath();
+              ctx.moveTo(from.sx, from.sy);
+              ctx.lineTo(to.sx, to.sy);
+              ctx.strokeStyle = 'rgba(108,138,255,0.3)';
+              ctx.lineWidth = 1;
+              ctx.setLineDash([4, 4]);
+              ctx.stroke();
+              ctx.setLineDash([]);
+            }
+          }
         }
 
-        // Hover tooltip
+        let lx = PAD;
+        ctx.font = "11px sans-serif";
+        if (colorMode === 'cluster') {
+          for (let ci = 0; ci < clusters.length; ci++) {
+            const color = COLORS[ci % COLORS.length];
+            ctx.fillStyle = color;
+            ctx.fillRect(lx, H - 18, 10, 10);
+            ctx.fillStyle = "#9ba1b5";
+            const label = `C${ci}: ${truncate(clusters[ci].primary.title, 20)}`;
+            ctx.fillText(label, lx + 14, H - 9);
+            lx += ctx.measureText(label).width + 24;
+            if (lx > W - 80) break;
+          }
+          ctx.fillStyle = UNCLUSTERED_COLOR;
+          ctx.fillRect(lx, H - 18, 10, 10);
+          ctx.fillStyle = "#9ba1b5";
+          ctx.fillText("unclustered", lx + 14, H - 9);
+        } else {
+          for (const f of feeds) {
+            ctx.fillStyle = feedColor[f];
+            ctx.fillRect(lx, H - 18, 10, 10);
+            ctx.fillStyle = "#9ba1b5";
+            ctx.fillText(f, lx + 14, H - 9);
+            lx += ctx.measureText(f).width + 28;
+            if (lx > W - 100) break;
+          }
+        }
+
         const tooltip = document.getElementById("pca-tooltip");
         canvas.onmousemove = (e) => {
           const cr = canvas.getBoundingClientRect();
@@ -614,24 +1054,31 @@
           const my = e.clientY - cr.top;
           let found = null;
           for (const p of points) {
-            const dx = mx - p.sx,
-              dy = my - p.sy;
-            if (dx * dx + dy * dy < 64) {
-              found = p;
-              break;
-            }
+            const dx = mx - p.sx, dy = my - p.sy;
+            if (dx * dx + dy * dy < 64) { found = p; break; }
           }
           if (found) {
             tooltip.style.display = "block";
             tooltip.style.left = e.clientX + 12 + "px";
             tooltip.style.top = e.clientY - 8 + "px";
-            tooltip.textContent = `[${found.feed}] ${found.title}`;
+            const cl = found.cluster >= 0 ? ` C${found.cluster}` : '';
+            tooltip.textContent = `#${found.idx}${cl} [${found.feed}] ${found.title}`;
           } else {
             tooltip.style.display = "none";
           }
         };
-        canvas.onmouseleave = () => {
-          tooltip.style.display = "none";
+        canvas.onmouseleave = () => { tooltip.style.display = "none"; };
+
+        canvas.onclick = (e) => {
+          const cr = canvas.getBoundingClientRect();
+          const mx = e.clientX - cr.left;
+          const my = e.clientY - cr.top;
+          let found = null;
+          for (const p of points) {
+            const dx = mx - p.sx, dy = my - p.sy;
+            if (dx * dx + dy * dy < 64) { found = p; break; }
+          }
+          if (found) highlightEmbedItem(found.idx);
         };
       }
 

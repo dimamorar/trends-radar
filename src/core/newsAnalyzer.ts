@@ -62,7 +62,7 @@ export interface PipelineSnapshot {
       publishedAt?: string;
       summary?: string;
     }>;
-    embeddings: Array<{ title: string; feedId: string; vector: number[] }>;
+    embeddings: Array<{ title: string; feedId: string; url?: string; summary?: string; vector: number[] }>;
     clusters: Array<{
       id: string;
       primary: { title: string; source: string; url?: string };
@@ -458,6 +458,8 @@ export class NewsAnalyzer {
         embeddings: dedupedItems.map((item, i) => ({
           title: item.title,
           feedId: item.feedId,
+          url: item.url,
+          summary: item.summary,
           vector: allEmbeddings[i],
         })),
         clusters: clusters.map((c) => ({
