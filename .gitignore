@@ -19,10 +19,8 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Output data (can be large)
-output/news/*.db
-output/html/*.html
-output/rss/*.db
+# Output data (can be large / may contain pipeline snapshots)
+output/
 
 # Logs
 *.log

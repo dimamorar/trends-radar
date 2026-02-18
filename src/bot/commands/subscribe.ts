@@ -6,7 +6,7 @@
 
 import type { Context } from 'grammy';
 import type { SubscriberService } from '../services/subscriber.js';
-import { logger } from '../../utils/logger.js';
+import { logger, maskId } from '../../utils/logger.js';
 
 /**
  * Create /subscribe command handler
@@ -41,7 +41,7 @@ export function createSubscribeHandler(subscriberService: SubscriberService) {
     const success = subscriberService.subscribe(from.id);
 
     if (success) {
-      logger.info(`[Bot] User subscribed: ${from.id}`);
+      logger.info(`[Bot] User subscribed: ${maskId(from.id)}`);
       await ctx.reply(
         'You are now subscribed to TrendRadar reports!\n\n' +
           'Use /report to get a report anytime.',

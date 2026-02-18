@@ -10,12 +10,14 @@
 import { resolve } from 'node:path';
 
 const PORT = Number(process.env.INSPECT_PORT) || 3333;
+const HOSTNAME = process.env.INSPECT_HOST || '127.0.0.1';
 const OUTPUT_DIR = process.env.INSPECT_OUTPUT_DIR || 'output';
 const HTML_PATH = resolve(import.meta.dir, 'index.html');
 const SNAPSHOT_PATH = resolve(OUTPUT_DIR, 'pipeline-snapshot.json');
 
 const server = Bun.serve({
   port: PORT,
+  hostname: HOSTNAME,
   async fetch(req) {
     const url = new URL(req.url);
 
@@ -24,7 +26,7 @@ const server = Bun.serve({
       const file = Bun.file(SNAPSHOT_PATH);
       if (await file.exists()) {
         return new Response(file, {
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+          headers: { 'Content-Type': 'application/json' },
         });
       }
       return Response.json(
@@ -44,4 +46,4 @@ const server = Bun.serve({
   },
 });
 
-console.log(`Pipeline Inspector running at http://localhost:${server.port}`);
+console.log(`Pipeline Inspector running at http://${server.hostname}:${server.port}`);

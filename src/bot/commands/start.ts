@@ -6,7 +6,7 @@
 
 import type { Context } from "grammy";
 import type { SubscriberService } from "../services/subscriber";
-import { logger } from "../../utils/logger";
+import { logger, maskId } from "../../utils/logger";
 
 /**
  * Create /start command handler
@@ -43,9 +43,7 @@ export function createStartHandler(subscriberService: SubscriberService) {
 
     if (isNew) {
       logger.info(
-        `[Bot] New user registered: ${from.id} (@${
-          from.username || "no_username"
-        })`,
+        `[Bot] New user registered: ${maskId(from.id)}`,
       );
 
       await ctx.reply(
@@ -60,7 +58,7 @@ export function createStartHandler(subscriberService: SubscriberService) {
       );
     } else {
       logger.info(
-        `[Bot] Returning user: ${from.id} (@${from.username || "no_username"})`,
+        `[Bot] Returning user: ${maskId(from.id)}`,
       );
 
       const statusMsg = subscriber.isSubscribed

@@ -31,7 +31,6 @@ bun run build             # Compile TypeScript to dist/
 bun run start             # Run compiled version (main pipeline)
 bun run bot               # Run Telegram bot (dev)
 bun run bot:prod          # Run Telegram bot (compiled)
-bun run mcp               # Run MCP server
 ```
 
 ## Architecture
@@ -51,8 +50,6 @@ RSS Feeds → Fetch & Parse → Keyword Matching/Scoring → Deduplication → O
 - `src/notification/` - Multi-channel delivery (Telegram, Email, Slack, webhooks)
 - `src/report/` - Report generation and HTML rendering
 - `src/crawler/` - RSS feed fetching and parsing
-- `src/mcp/` - Model Context Protocol server
-
 ### Central Patterns
 
 **AppContext** (`src/core/context.ts`): Dependency injection container that encapsulates configuration, storage backend, and time utilities. All config-dependent operations flow through this class.
@@ -81,7 +78,6 @@ The app supports multiple entrypoints controlled by `app.entrypoint` in config o
 VS Code/Cursor launch configurations are in `.vscode/launch.json`:
 - **Debug Main** - Run main pipeline with breakpoints
 - **Debug Bot** - Run Telegram bot (`TRENDRADAR_ENTRYPOINT=bot`)
-- **Debug MCP** - Run MCP server
 - **Debug File** - Run currently open file
 - **Attach Bun** - Attach to running Bun process (`bun --inspect`)
 

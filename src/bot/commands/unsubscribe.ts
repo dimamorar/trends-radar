@@ -6,7 +6,7 @@
 
 import type { Context } from 'grammy';
 import type { SubscriberService } from '../services/subscriber.js';
-import { logger } from '../../utils/logger.js';
+import { logger, maskId } from '../../utils/logger.js';
 
 /**
  * Create /unsubscribe command handler
@@ -40,7 +40,7 @@ export function createUnsubscribeHandler(subscriberService: SubscriberService) {
     const success = subscriberService.unsubscribe(from.id);
 
     if (success) {
-      logger.info(`[Bot] User unsubscribed: ${from.id}`);
+      logger.info(`[Bot] User unsubscribed: ${maskId(from.id)}`);
       await ctx.reply(
         'You have been unsubscribed from TrendRadar reports.\n\n' +
           'You can still use /report to get reports on-demand.\n' +

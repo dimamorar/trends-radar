@@ -27,7 +27,7 @@ This is **new functionality** not present in the original Python version, which 
 Set your bot token as an environment variable:
 
 ```bash
-export TELEGRAM_BOT_TOKEN="8595490220:AAFGBuDWdPcnhJVxojUkLeKd_JsKpSCpK80"
+export TELEGRAM_BOT_TOKEN="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ"
 ```
 
 Or add it to `config/config.yaml`:

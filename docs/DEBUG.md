@@ -6,7 +6,6 @@ Use the Bun debugger via `.vscode/launch.json`:
 
 - **Debug Main** – Run main pipeline (`src/index.ts`, entrypoint `run`) with breakpoints.
 - **Debug Bot** – Run Telegram bot (`src/index.ts` with `TRENDRADAR_ENTRYPOINT=bot`).
-- **Debug MCP** – Run MCP server (`src/mcp/server.ts`).
 - **Debug File** – Run the currently open file with the debugger.
 - **Attach Bun** – Attach to a Bun process already running with inspector (e.g. `bun --inspect`).
 

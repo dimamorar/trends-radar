@@ -9,7 +9,7 @@ import type { AppContext } from "../../core/context";
 import { renderHtmlContent } from "../../notification/renderer";
 import { splitForPlatform } from "../../notification/splitter";
 import type { RssItem, StatisticsEntry } from "../../types/index";
-import { logger } from "../../utils/logger";
+import { logger, maskId } from "../../utils/logger";
 import { RateLimiter } from "../middleware/rateLimit";
 import type { SubscriberService } from "../services/subscriber";
 
@@ -108,7 +108,7 @@ export function createReportHandler(
 
       // Record the request
       subscriberService.recordReportRequest(subscriber.id);
-      logger.info(`[Bot] Report sent to user ${from.id}`);
+      logger.info(`[Bot] Report sent to user ${maskId(from.id)}`);
     } catch (error) {
       logger.error({ error }, "[Bot] Failed to generate/send report");
 

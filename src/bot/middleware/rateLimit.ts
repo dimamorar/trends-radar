@@ -5,7 +5,7 @@
  */
 
 import type { SubscriberStorage } from '../storage/subscriber.js';
-import { logger } from '../../utils/logger.js';
+import { logger, maskId } from '../../utils/logger.js';
 
 /**
  * Rate limit configuration
@@ -57,7 +57,7 @@ export class RateLimiter {
 
       if (waitMinutes > 0) {
         logger.info(
-          `[RateLimit] Subscriber ${subscriberId} in cooldown, wait ${waitMinutes} minutes`,
+          `[RateLimit] Subscriber ${maskId(subscriberId)} in cooldown, wait ${waitMinutes} minutes`,
         );
         return {
           allowed: false,
@@ -72,7 +72,7 @@ export class RateLimiter {
 
     if (requestsInLastHour >= this.config.reportsPerHour) {
       logger.info(
-        `[RateLimit] Subscriber ${subscriberId} exceeded hourly limit (${requestsInLastHour}/${this.config.reportsPerHour})`,
+        `[RateLimit] Subscriber ${maskId(subscriberId)} exceeded hourly limit (${requestsInLastHour}/${this.config.reportsPerHour})`,
       );
       return {
         allowed: false,

@@ -9,7 +9,7 @@ import type { AppContext } from "../../core/context.js";
 import { renderHtmlContent } from "../../notification/renderer.js";
 import { splitForPlatform } from "../../notification/splitter.js";
 import type { RssItem, StatisticsEntry } from "../../types/index.js";
-import { logger } from "../../utils/logger.js";
+import { logger, maskId } from "../../utils/logger.js";
 import type { Subscriber } from "../storage/subscriber.js";
 import type { SubscriberService } from "./subscriber.js";
 
@@ -148,7 +148,7 @@ export class BroadcastService {
       return true;
     } catch (error) {
       logger.error(
-        { error, subscriberId: subscriber.id, chatId: subscriber.chatId },
+        { error, subscriberId: maskId(subscriber.id), chatId: maskId(subscriber.chatId) },
         "[Broadcast] Failed to send to subscriber",
       );
       return false;
