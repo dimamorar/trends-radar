@@ -39,3 +39,7 @@ coverage/
 # Telegram session
 *.session
 *.session-journal
+
+
+# Cursor
+.cursor/
