@@ -1,8 +1,7 @@
 /**
  * AI Client
  *
- * Unified AI client using Vercel AI SDK
- * Supports OpenAI, Anthropic, Google, DeepSeek, and other providers
+ * Unified AI client using Vercel AI SDK — OpenAI only.
  */
 
 import {
@@ -17,16 +16,13 @@ import {
   type AssistantModelMessage,
 } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createDeepSeek } from '@ai-sdk/deepseek';
 import { logger } from '../utils/logger.js';
 
 /**
  * AI client configuration
  */
 export interface AIClientConfig {
-  model: string; // e.g., "anthropic/claude-sonnet-4-20250514" or "gpt-4o"
+  model: string; // e.g., "openai/gpt-4o-mini" or "gpt-4o"
   apiKey: string;
   apiBase?: string; // Override API base URL
   temperature?: number;
@@ -44,113 +40,51 @@ export interface ChatMessage {
 }
 
 /**
- * Provider information extracted from model string
+ * Parse model string to OpenAI model ID.
+ * Accepts "openai/model" or bare "model" (e.g. "gpt-4o-mini").
  */
-interface ProviderInfo {
-  provider: string;
-  modelId: string;
+function parseModelString(model: string): string {
+  if (model.includes('/')) {
+    const [, ...rest] = model.split('/');
+    return rest.join('/');
+  }
+  return model;
+}
+
+/**
+ * Create an embedding model instance (OpenAI only).
+ */
+function createEmbeddingModelInstance(
+  modelId: string,
+  apiKey: string,
+  apiBase?: string,
+): EmbeddingModel {
+  const openai = createOpenAI({
+    apiKey,
+    ...(apiBase && { baseURL: apiBase }),
+  });
+  return openai.embedding(modelId);
+}
+
+/**
+ * Create a language model instance (OpenAI only).
+ */
+function createLanguageModel(
+  modelId: string,
+  apiKey: string,
+  apiBase?: string,
+): LanguageModel {
+  const openai = createOpenAI({
+    apiKey,
+    ...(apiBase && { baseURL: apiBase }),
+  });
+  return openai(modelId);
 }
 
 /**
  * Stream callback type
  */
 export type StreamCallback = (chunk: string) => void;
-
-/**
- * Parse model string to extract provider and model ID
- * Supports formats:
- * - "provider/model" (e.g., "anthropic/claude-sonnet-4-20250514")
- * - "model" (defaults to openai, e.g., "gpt-4o")
- */
-function parseModelString(model: string): ProviderInfo {
-  if (model.includes('/')) {
-    const [provider, ...rest] = model.split('/');
-    return {
-      provider: provider.toLowerCase(),
-      modelId: rest.join('/'),
-    };
-  }
-  return {
-    provider: 'openai',
-    modelId: model,
-  };
-}
-
-/**
- * Create an embedding model instance for the given provider and model
- */
-function createEmbeddingModelInstance(
-  providerInfo: ProviderInfo,
-  apiKey: string,
-  apiBase?: string,
-): EmbeddingModel {
-  const { provider, modelId } = providerInfo;
-
-  const openai = createOpenAI({
-    apiKey,
-    ...(apiBase && { baseURL: apiBase }),
-    ...(!apiBase && getDefaultBaseUrl(provider) && { baseURL: getDefaultBaseUrl(provider) }),
-  });
-  return openai.embedding(modelId);
-}
-
-/**
- * Create a language model instance for the given provider and model
- */
-function createLanguageModel(
-  providerInfo: ProviderInfo,
-  apiKey: string,
-  apiBase?: string,
-): LanguageModel {
-  const { provider, modelId } = providerInfo;
-
-  switch (provider) {
-    case 'anthropic': {
-      const anthropic = createAnthropic({
-        apiKey,
-        ...(apiBase && { baseURL: apiBase }),
-      });
-      return anthropic(modelId);
-    }
-    case 'google':
-    case 'gemini': {
-      const google = createGoogleGenerativeAI({
-        apiKey,
-        ...(apiBase && { baseURL: apiBase }),
-      });
-      return google(modelId);
-    }
-    case 'deepseek': {
-      const deepseek = createDeepSeek({
-        apiKey,
-        ...(apiBase && { baseURL: apiBase }),
-      });
-      return deepseek(modelId);
-    }
-    default: {
-      const openai = createOpenAI({
-        apiKey,
-        ...(apiBase && { baseURL: apiBase }),
-        ...(!apiBase && getDefaultBaseUrl(provider) && { baseURL: getDefaultBaseUrl(provider) }),
-      });
-      return openai(modelId);
-    }
-  }
-}
-
-/**
- * Get default base URL for provider
- */
-function getDefaultBaseUrl(provider: string): string | undefined {
-  const baseUrls: Record<string, string> = {
-    groq: 'https://api.groq.com/openai/v1',
-    together: 'https://api.together.xyz/v1',
-    openrouter: 'https://openrouter.ai/api/v1',
-    fireworks: 'https://api.fireworks.ai/inference/v1',
-    perplexity: 'https://api.perplexity.ai',
-  };
-  return baseUrls[provider];
-}
 
 /**
  * Convert ChatMessage to ModelMessage
@@ -188,8 +122,8 @@ export class AIClient {
     this.apiKey = config.apiKey;
     this.apiBase = config.apiBase;
 
-    const providerInfo = parseModelString(config.model);
-    this.model = createLanguageModel(providerInfo, config.apiKey, config.apiBase);
+    const modelId = parseModelString(config.model);
+    this.model = createLanguageModel(modelId, config.apiKey, config.apiBase);
   }
 
   /**
@@ -224,8 +158,8 @@ export class AIClient {
 
     for (const modelStr of modelsToTry) {
       try {
-        const providerInfo = parseModelString(modelStr);
-        const model = createLanguageModel(providerInfo, this.apiKey, this.apiBase);
+        const modelId = parseModelString(modelStr);
+        const model = createLanguageModel(modelId, this.apiKey, this.apiBase);
 
         const { text } = await generateText({
           model,
@@ -325,8 +259,8 @@ export class AIClient {
    */
   async generateEmbeddings(texts: string[], embeddingModel?: string): Promise<number[][]> {
     const modelStr = embeddingModel ?? 'openai/text-embedding-3-small';
-    const providerInfo = parseModelString(modelStr);
-    const model = createEmbeddingModelInstance(providerInfo, this.apiKey, this.apiBase);
+    const modelId = parseModelString(modelStr);
+    const model = createEmbeddingModelInstance(modelId, this.apiKey, this.apiBase);
 
     const { embeddings } = await embedMany({
       model,
@@ -342,8 +276,8 @@ export class AIClient {
    * @returns EmbeddingModel instance
    */
   createEmbeddingModel(modelString: string): EmbeddingModel {
-    const providerInfo = parseModelString(modelString);
-    return createEmbeddingModelInstance(providerInfo, this.apiKey, this.apiBase);
+    const modelId = parseModelString(modelString);
+    return createEmbeddingModelInstance(modelId, this.apiKey, this.apiBase);
   }
 }
 

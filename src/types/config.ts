@@ -38,7 +38,7 @@ export interface StorageConfig {
 export interface AIPipelineConfig {
   enabled: boolean;
   classification?: {
-    model: string; // e.g., "anthropic/claude-haiku-4-5-20251001"
+    model: string; // e.g., "openai/gpt-4o-mini"
     batchSize: number;
     concurrency: number;
   };
@@ -50,7 +50,7 @@ export interface AIPipelineConfig {
     similarityThreshold: number; // e.g., 0.82
   };
   summarization: {
-    model: string; // e.g., "deepseek/deepseek-chat"
+    model: string; // e.g., "openai/gpt-4o-mini"
     minImportance: number; // Minimum importance score to summarize
     maxTopics: number; // Maximum number of topics in report
   };

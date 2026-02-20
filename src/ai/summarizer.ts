@@ -10,7 +10,6 @@
 
 import { Output, generateText, type LanguageModel } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { ClusterSummarySchema, type ClusterSummaryOutput } from "./schemas.js";
 import type { NewsCluster, ClassifiedArticle } from "./clustering.js";
 import { logger } from "../utils/logger.js";
@@ -32,57 +31,32 @@ export interface ClusterSummary {
  * Summarizer configuration
  */
 export interface ClusterSummarizerConfig {
-  model: string; // e.g., "anthropic/claude-sonnet-4-5-20250929"
+  model: string; // e.g., "openai/gpt-4o-mini"
   apiKey: string;
   apiBase?: string;
   language?: string; // Output language (e.g., "Ukrainian")
 }
 
-/**
- * Parse model string to extract provider and model ID
- */
-function parseModelString(model: string): {
-  provider: string;
-  modelId: string;
-} {
+/** Parse model string to OpenAI model ID (supports "openai/model" or "model"). */
+function parseModelString(model: string): string {
   if (model.includes("/")) {
-    const [provider, ...rest] = model.split("/");
-    return {
-      provider: provider.toLowerCase(),
-      modelId: rest.join("/"),
-    };
+    const [, ...rest] = model.split("/");
+    return rest.join("/");
   }
-  return {
-    provider: "openai",
-    modelId: model,
-  };
+  return model;
 }
 
-/**
- * Create a language model instance for summarization
- */
+/** Create a language model instance for summarization (OpenAI only). */
 function createLanguageModel(
-  provider: string,
   modelId: string,
   apiKey: string,
   apiBase?: string,
 ): LanguageModel {
-  switch (provider) {
-    case "anthropic": {
-      const anthropic = createAnthropic({
-        apiKey,
-        ...(apiBase && { baseURL: apiBase }),
-      });
-      return anthropic(modelId);
-    }
-    default: {
-      const openai = createOpenAI({
-        apiKey,
-        ...(apiBase && { baseURL: apiBase }),
-      });
-      return openai(modelId);
-    }
-  }
+  const openai = createOpenAI({
+    apiKey,
+    ...(apiBase && { baseURL: apiBase }),
+  });
+  return openai(modelId);
 }
 
 /**
@@ -118,13 +92,8 @@ export class ClusterSummarizer {
     this.modelString = config.model;
     this.language = config.language ?? "English";
 
-    const { provider, modelId } = parseModelString(config.model);
-    this.model = createLanguageModel(
-      provider,
-      modelId,
-      config.apiKey,
-      config.apiBase,
-    );
+    const modelId = parseModelString(config.model);
+    this.model = createLanguageModel(modelId, config.apiKey, config.apiBase);
   }
 
   /**

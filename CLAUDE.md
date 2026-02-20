@@ -44,7 +44,7 @@ RSS Feeds → Fetch & Parse → Keyword Matching/Scoring → Deduplication → O
 ### Key Directories
 
 - `src/core/` - Keyword parsing (`frequency.ts`), weight scoring (`analyzer.ts`), config loading (`config.ts`), AppContext (`context.ts`)
-- `src/ai/` - Multi-provider AI client using Vercel AI SDK (OpenAI, Anthropic, Google, DeepSeek)
+- `src/ai/` - OpenAI via Vercel AI SDK
 - `src/bot/` - Interactive Telegram bot (grammy framework) with subscriber management
 - `src/storage/` - Pluggable backends: SQLite (`local.ts`) or S3-compatible (`remote.ts`)
 - `src/notification/` - Multi-channel delivery (Telegram, Email, Slack, webhooks)
@@ -58,7 +58,7 @@ RSS Feeds → Fetch & Parse → Keyword Matching/Scoring → Deduplication → O
 
 **Configuration**: YAML-based (`config/config.yaml`) with environment variable interpolation (`${VAR_NAME}`). Validated with Zod schemas (`src/core/configSchema.ts`). Config keys use camelCase.
 
-**AI Client** (`src/ai/client.ts`): Uses Vercel AI SDK v6. Model format is `provider/model` (e.g., `anthropic/claude-sonnet-4-20250514`, `openai/gpt-4o`). Supports automatic fallback models.
+**AI Client** (`src/ai/client.ts`): Uses Vercel AI SDK v6, OpenAI only. Model format is `openai/model` or bare `model` (e.g., `openai/gpt-4o`, `gpt-4o-mini`). Supports automatic fallback models.
 
 ### Entrypoints
 

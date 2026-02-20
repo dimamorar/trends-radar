@@ -9,7 +9,6 @@
 
 import { generateObject, type LanguageModel } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
-import { createAnthropic } from "@ai-sdk/anthropic";
 import {
   ArticleClassificationSchema,
   type ArticleClassificationOutput,
@@ -44,58 +43,33 @@ export interface ClassificationResult {
  * Classifier configuration
  */
 export interface AIClassifierConfig {
-  model: string; // e.g., "anthropic/claude-haiku-4-5-20251001"
+  model: string; // e.g., "openai/gpt-4o-mini"
   apiKey: string;
   apiBase?: string;
   batchSize?: number;
   concurrency?: number;
 }
 
-/**
- * Parse model string to extract provider and model ID
- */
-function parseModelString(model: string): {
-  provider: string;
-  modelId: string;
-} {
+/** Parse model string to OpenAI model ID (supports "openai/model" or "model"). */
+function parseModelString(model: string): string {
   if (model.includes("/")) {
-    const [provider, ...rest] = model.split("/");
-    return {
-      provider: provider.toLowerCase(),
-      modelId: rest.join("/"),
-    };
+    const [, ...rest] = model.split("/");
+    return rest.join("/");
   }
-  return {
-    provider: "openai",
-    modelId: model,
-  };
+  return model;
 }
 
-/**
- * Create a language model instance for classification
- */
+/** Create a language model instance for classification (OpenAI only). */
 function createLanguageModel(
-  provider: string,
   modelId: string,
   apiKey: string,
   apiBase?: string,
 ): LanguageModel {
-  switch (provider) {
-    case "anthropic": {
-      const anthropic = createAnthropic({
-        apiKey,
-        ...(apiBase && { baseURL: apiBase }),
-      });
-      return anthropic(modelId);
-    }
-    default: {
-      const openai = createOpenAI({
-        apiKey,
-        ...(apiBase && { baseURL: apiBase }),
-      });
-      return openai(modelId);
-    }
-  }
+  const openai = createOpenAI({
+    apiKey,
+    ...(apiBase && { baseURL: apiBase }),
+  });
+  return openai(modelId);
 }
 
 /**
@@ -112,13 +86,8 @@ export class AIClassifier {
     this.batchSize = config.batchSize ?? 10;
     this.concurrency = config.concurrency ?? 3;
 
-    const { provider, modelId } = parseModelString(config.model);
-    this.model = createLanguageModel(
-      provider,
-      modelId,
-      config.apiKey,
-      config.apiBase,
-    );
+    const modelId = parseModelString(config.model);
+    this.model = createLanguageModel(modelId, config.apiKey, config.apiBase);
   }
 
   /**

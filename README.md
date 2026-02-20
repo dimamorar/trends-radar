@@ -9,7 +9,7 @@ Aggregates RSS feeds from major Ukrainian media, deduplicates articles, optional
 ## Features
 
 - **10 Ukrainian RSS sources** out of the box — Українська правда, УНІАН, РБК-Україна, НВ, Цензор.НЕТ, ТСН, 24 Канал, Обозреватель, Кореспондент, LB.ua
-- **AI pipeline** — embedding → cosine-similarity clustering → importance scoring → Ukrainian-language summaries (Vercel AI SDK; OpenAI, Anthropic, Google, DeepSeek)
+- **AI pipeline** — embedding → cosine-similarity clustering → importance scoring → Ukrainian-language summaries (Vercel AI SDK; OpenAI)
 - **Telegram notifications** — formatted reports pushed to a chat/channel; automatic message splitting for long reports
 - **Interactive Telegram bot** — `/report`, `/subscribe`, `/status` and more; subscriber management with SQLite
 - **Multiple report modes** — `daily` (full-day rollup), `current` (live snapshot), `incremental` (new items only)
@@ -34,7 +34,7 @@ Copy `.env.local.example` to `.env.local` (or export env vars directly) and set 
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token (from @BotFather) |
 | `TELEGRAM_CHAT_ID` | Target chat / channel ID |
-| `AI_API_KEY` | OpenAI (or other provider) key — required only if AI pipeline is enabled |
+| `AI_API_KEY` | OpenAI API key — required only if AI pipeline is enabled |
 
 Edit `config/config.yaml` to tweak RSS feeds, report mode, AI settings, etc. Environment variables are interpolated via `${VAR_NAME}` syntax inside the YAML.
 

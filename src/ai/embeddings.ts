@@ -19,24 +19,13 @@ export interface EmbeddingServiceConfig {
   apiBase?: string;
 }
 
-/**
- * Parse model string to extract provider and model ID
- */
-function parseModelString(model: string): {
-  provider: string;
-  modelId: string;
-} {
+/** Parse model string to OpenAI model ID (supports "openai/model" or "model"). */
+function parseModelString(model: string): string {
   if (model.includes("/")) {
-    const [provider, ...rest] = model.split("/");
-    return {
-      provider: provider.toLowerCase(),
-      modelId: rest.join("/"),
-    };
+    const [, ...rest] = model.split("/");
+    return rest.join("/");
   }
-  return {
-    provider: "openai",
-    modelId: model,
-  };
+  return model;
 }
 
 /**
@@ -64,7 +53,7 @@ export class EmbeddingService {
 
   constructor(config: EmbeddingServiceConfig) {
     this.modelString = config.model;
-    const { modelId } = parseModelString(config.model);
+    const modelId = parseModelString(config.model);
     this.model = createEmbeddingModelInstance(
       modelId,
       config.apiKey,

@@ -235,7 +235,7 @@ export const ConfigSchema = z.object({
       enabled: z.boolean().default(false),
       classification: z
         .object({
-          model: z.string().default('anthropic/claude-haiku-4-5-20251001'),
+          model: z.string().default('openai/gpt-4o-mini'),
           batchSize: z.number().default(10),
           concurrency: z.number().default(3),
         })
