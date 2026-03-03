@@ -246,6 +246,8 @@ export interface BotConfig {
   adminUserIds: number[];
   rateLimit: BotRateLimitConfig;
   databasePath: string;
+  scheduleReportCron?: string;
+  reportTimezone?: string;
 }
 
 /**

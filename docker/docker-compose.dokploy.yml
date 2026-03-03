@@ -1,7 +1,3 @@
-# TrendRadar Bot - Dokploy Deployment
-# For use with Dokploy on Hetzner VPS
-# Uses external dokploy-network for integration with other services
-
 services:
   trendradar-bot:
     build:
@@ -13,6 +9,9 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - AI_API_KEY=${AI_API_KEY:-}
       - NODE_ENV=production
+      - TRENDRADAR_ENTRYPOINT=bot
+      # Set TZ for scheduled report (e.g. 7:00): Europe/Berlin, Europe/Kyiv, etc.
+      - TZ=${TZ:-Europe/Berlin}
     volumes:
       - bot_data:/app/output/bot
       - rss_data:/app/output/rss

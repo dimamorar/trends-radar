@@ -21,5 +21,7 @@ export function getBotConfig(config: Config): BotConfig {
       cooldownMinutes: config.bot?.rateLimit?.cooldownMinutes ?? 5,
     },
     databasePath: config.bot?.databasePath ?? "output/bot/bot.db",
+    scheduleReportCron: config.bot?.scheduleReportCron,
+    reportTimezone: config.bot?.reportTimezone,
   };
 }

@@ -227,6 +227,8 @@ export const ConfigSchema = z.object({
         })
         .default({ reportsPerHour: 6, cooldownMinutes: 5 }),
       databasePath: z.string().default("output/bot/bot.db"),
+      scheduleReportCron: z.string().optional(),
+      reportTimezone: z.string().optional(),
     })
     .optional(),
 

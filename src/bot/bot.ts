@@ -1,3 +1,4 @@
+import cron from "node-cron";
 import { Bot } from "grammy";
 import type { AppContext } from "../core/context.js";
 import type { BotConfig } from "../types/config.js";
@@ -26,10 +27,13 @@ export class TrendRadarBot {
   private rateLimiter: RateLimiter;
   private broadcastService: BroadcastService;
   private appContext: AppContext;
+  private botConfig: BotConfig;
   private isRunning = false;
+  private scheduledTask: cron.ScheduledTask | null = null;
 
   constructor(appContext: AppContext, botConfig: BotConfig) {
     this.appContext = appContext;
+    this.botConfig = botConfig;
 
     // Validate bot token
     if (!botConfig.botToken) {
@@ -169,7 +173,7 @@ export class TrendRadarBot {
 
     logger.info("[Bot] Starting bot in long-polling mode...");
 
-    // Setup graceful shutdown
+    this.setupScheduledBroadcast();
     this.setupGracefulShutdown();
 
     this.isRunning = true;
@@ -187,6 +191,36 @@ export class TrendRadarBot {
   }
 
   /**
+   * Schedule daily broadcast to subscribers if scheduleReportCron is set.
+   */
+  private setupScheduledBroadcast(): void {
+    const { scheduleReportCron, reportTimezone } = this.botConfig;
+    if (!scheduleReportCron) return;
+
+    if (reportTimezone) {
+      process.env.TZ = reportTimezone;
+    }
+
+    this.scheduledTask = cron.schedule(scheduleReportCron, async () => {
+      logger.info("[Bot] Running scheduled broadcast");
+      try {
+        const result = await this.broadcastService.broadcastReport();
+        logger.info(
+          { ...result },
+          "[Bot] Scheduled broadcast finished",
+        );
+      } catch (error) {
+        logger.error({ error }, "[Bot] Scheduled broadcast failed");
+      }
+    });
+
+    logger.info(
+      { scheduleReportCron, reportTimezone },
+      "[Bot] Scheduled broadcast enabled",
+    );
+  }
+
+  /**
    * Stop the bot
    */
   async stop(): Promise<void> {
@@ -196,6 +230,10 @@ export class TrendRadarBot {
 
     logger.info("[Bot] Stopping bot...");
 
+    if (this.scheduledTask) {
+      this.scheduledTask.stop();
+      this.scheduledTask = null;
+    }
     this.bot.stop();
     this.storage.cleanup();
     this.isRunning = false;

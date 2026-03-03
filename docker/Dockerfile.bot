@@ -1,27 +1,33 @@
-# TrendRadar Bot Dockerfile
+# Stage 1: build
+FROM oven/bun:1-alpine AS builder
+
+WORKDIR /app
+
+COPY package.json bun.lockb ./
+RUN bun install --frozen-lockfile
+
+COPY tsconfig.json ./
+COPY src ./src
+COPY config ./config
+
+RUN bun run build
+
+# Stage 2: production image
 FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-# Copy package files
 COPY package.json bun.lockb ./
-
-# Install dependencies
 RUN bun install --frozen-lockfile --production
 
-# Copy source and config
-COPY dist ./dist
+COPY --from=builder /app/dist ./dist
 COPY config ./config
 
-# Create output directory for SQLite
 RUN mkdir -p output/bot
 
-# Set environment
 ENV NODE_ENV=production
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD pgrep -f "bun" || exit 1
 
-# Run bot
-CMD ["bun", "run", "dist/index.js", "bot"]
+CMD ["bun", "run", "dist/index.js"]

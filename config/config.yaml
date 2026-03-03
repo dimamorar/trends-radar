@@ -116,9 +116,8 @@ display:
     newItems: true
     aiAnalysis: true
 
-# Phase 2: Telegram Channel Scraping (optional)
 telegramChannels:
-  enabled: false # Set to true when you have API credentials
+  enabled: false
   apiId: "${TELEGRAM_API_ID}"
   apiHash: "${TELEGRAM_API_HASH}"
   sessionString: "${TELEGRAM_SESSION_STRING}"
@@ -142,16 +141,13 @@ telegramChannels:
       tier: 2
       category: "military"
 
-# Interactive Telegram Bot
 bot:
   enabled: true
-  # Bot token - uses TELEGRAM_BOT_TOKEN env var or notification.channels.telegram.botToken as fallback
   botToken: "${TELEGRAM_BOT_TOKEN}"
-  # Admin user IDs (Telegram user IDs that can use admin commands)
-  adminUserIds: [7425170473, 308054423]
-  # Rate limiting for /report command
+  adminUserIds: []
   rateLimit:
     reportsPerHour: 6
     cooldownMinutes: 5
-  # Database path for subscriber storage
   databasePath: "output/bot/bot.db"
+  scheduleReportCron: "0 7 * * *"
+  reportTimezone: "Europe/Kyiv"
