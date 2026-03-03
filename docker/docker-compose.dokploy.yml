@@ -10,8 +10,7 @@ services:
       - AI_API_KEY=${AI_API_KEY:-}
       - NODE_ENV=production
       - TRENDRADAR_ENTRYPOINT=bot
-      # Set TZ for scheduled report (e.g. 7:00): Europe/Berlin, Europe/Kyiv, etc.
-      - TZ=${TZ:-Europe/Berlin}
+      - TZ=${TZ:-Europe/Kyiv}
     volumes:
       - bot_data:/app/output/bot
       - rss_data:/app/output/rss
