@@ -16,11 +16,13 @@ Aggregates RSS feeds from major Ukrainian media, deduplicates articles, optional
 - **Storage** — local SQLite (default) or S3-compatible remote; configurable retention
 - **Timezone** — `Europe/Kyiv` by default
 
+For full bot details (commands, environment, and production deployment with Dokploy), see `docs/BOT.md`.
+
 ## Quick Start
 
 ### Prerequisites
 
-- [Bun](https://bun.sh) >= 1.0 (Node >= 20 also works)
+- [Bun](https://bun.sh) >= 1.0 (Node >= 20 also works; Bun is recommended)
 
 ### Install & configure
 
@@ -42,14 +44,25 @@ Edit `config/config.yaml` to tweak RSS feeds, report mode, AI settings, etc. Env
 
 ```bash
 # Main analysis pipeline (fetch → analyze → notify)
-bun run dev          # with hot-reload
-bun run start        # compiled
+bun run dev            # run src/index.ts with watch mode
+bun run build          # compile to dist/
+bun run start          # run compiled dist/index.js
 
 # Telegram bot only
-bun run bot
+bun run bot            # dev bot (src/index.ts, entrypoint=bot)
+bun run bot:prod       # prod bot (dist/index.js, entrypoint=bot)
 
 # Both pipeline then bot
 # Set app.entrypoint: "both" in config or TRENDRADAR_ENTRYPOINT=both
+# (for example via config/config.yaml or environment)
+
+# Recommended Dokploy/Docker production:
+# - Use docker/docker-compose.dokploy.yml for long-running bot container
+# - Run daily pipeline via Dokploy scheduled job with:
+#   env TRENDRADAR_ENTRYPOINT=run bun run dist/index.js
+
+# Optional: run compiled CLI directly
+trendradar             # same as `bun dist/index.js`
 ```
 
 ## Configuration
@@ -72,15 +85,20 @@ All configuration lives in `config/config.yaml`. Key sections:
 
 | Command | Description |
 |---|---|
-| `bun run dev` | Run with watch mode |
-| `bun run build` | Compile TypeScript to `dist/` |
-| `bun run start` | Run compiled output |
-| `bun run bot` | Run Telegram bot (dev) |
-| `bun run bot:prod` | Run Telegram bot (compiled) |
-| `bun run typecheck` | Type-check only |
-| `bun run lint` | Biome lint |
-| `bun run format` | Biome format |
-| `bun run check` | Biome check + auto-fix |
+| `bun run dev` | Run main entrypoint from `src/index.ts` with watch mode |
+| `bun run build` | Compile TypeScript to `dist/` using `tsc` |
+| `bun run start` | Run compiled CLI from `dist/index.js` |
+| `bun run bot` | Run Telegram bot in dev mode from `src/index.ts` (`TRENDRADAR_ENTRYPOINT=bot`) |
+| `bun run bot:prod` | Run Telegram bot from compiled `dist/index.js` (`TRENDRADAR_ENTRYPOINT=bot`) |
+| `bun run typecheck` | Type-check only (`tsc --noEmit`) |
+| `bun run lint` | Biome lint (`biome lint src`) |
+| `bun run lint:fix` | Biome lint with auto-fix (`biome lint src --write`) |
+| `bun run format` | Biome format (`biome format src --write`) |
+| `bun run check` | Biome full check with auto-fix (`biome check src --write`) |
+| `bun run inspect` | Run the inspector HTTP server (`src/inspector/server.ts`) |
+| `bun run dev:inspect` | Run inspector server in watch mode |
+| `bun run convex:dev` | Start Convex dev server (experimental storage) |
+| `bun run convex:deploy` | Deploy Convex backend (experimental storage) |
 
 ## Project Structure
 
@@ -101,7 +119,7 @@ config/
 └── ai_analysis_prompt-en.txt   # AI analysis prompt template
 ```
 
-See [CLAUDE.md](CLAUDE.md) for detailed architecture notes.
+See [CLAUDE.md](CLAUDE.md) for detailed architecture, configuration, and runtime notes (entrypoints, storage backends, AI client, and debugging).
 
 ## License
 
