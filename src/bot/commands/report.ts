@@ -6,9 +6,9 @@
 
 import type { Context } from "grammy";
 import type { AppContext } from "../../core/context";
-import { renderHtmlContent } from "../../notification/renderer";
+import { NewsAnalyzer } from "../../core/newsAnalyzer";
+import { renderClusterReport } from "../../notification/renderer";
 import { splitForPlatform } from "../../notification/splitter";
-import type { RssItem, StatisticsEntry } from "../../types/index";
 import { logger, maskId } from "../../utils/logger";
 import { RateLimiter } from "../middleware/rateLimit";
 import type { SubscriberService } from "../services/subscriber";
@@ -56,31 +56,29 @@ export function createReportHandler(
 
     // Send "generating report" message
     const loadingMsg = await ctx.reply("Generating report...");
+    let analyzer: NewsAnalyzer | null = null;
 
     try {
-      // Generate report data
-      const reportData = await generateReportData(appContext);
+      analyzer = new NewsAnalyzer(appContext.config);
+      const reportResult = await analyzer.runOnDemandReport();
 
-      if (!reportData.hasData) {
+      if (!reportResult.ok) {
+        logger.warn(
+          { code: reportResult.code, userId: maskId(from.id) },
+          "[Bot] On-demand report failed",
+        );
         await ctx.api.editMessageText(
           chatId,
           loadingMsg.message_id,
-          "No data available for report. Please try again later.",
+          reportResult.message,
         );
         return;
       }
 
-      // Render HTML content
-      const htmlContent = renderHtmlContent(
-        { stats: reportData.stats },
-        reportData.rssItems,
-        {
-          reportType: "TrendRadar Report",
-          showRss: true,
-          maxItems: appContext.config.report.maxNewsPerKeyword,
-          getTime: () => appContext.getTime(),
-        },
-      );
+      const htmlContent = renderClusterReport(reportResult.topics, {
+        reportType: "TrendRadar Report",
+        getTime: () => appContext.getTime(),
+      });
 
       // Split for Telegram
       const messages = splitForPlatform(htmlContent, "telegram");
@@ -123,45 +121,15 @@ export function createReportHandler(
           "Sorry, failed to generate the report. Please try again later.",
         );
       }
-    }
-  };
-}
-
-/**
- * Generate report data from AppContext
- * Note: Frequency words logic has been removed - returns empty stats
- */
-async function generateReportData(appContext: AppContext): Promise<{
-  hasData: boolean;
-  stats: StatisticsEntry[];
-  rssItems: RssItem[] | null;
-}> {
-  const storage = appContext.getStorageManager();
-
-  // Get RSS data
-  const rssData = await storage.getRssData();
-  let rssItems: RssItem[] | null = null;
-
-  if (rssData) {
-    rssItems = [];
-    for (const [feedId, items] of Object.entries(rssData.items)) {
-      const feedName = rssData.idToName[feedId] || feedId;
-      for (const item of items) {
-        rssItems.push({
-          ...item,
-          feedId,
-          feedName,
-        });
+    } finally {
+      if (analyzer) {
+        try {
+          await analyzer.cleanup();
+        } catch (error) {
+          logger.warn({ error }, "[Bot] Analyzer cleanup failed");
+        }
       }
     }
-  }
-
-  const hasData = rssItems !== null && rssItems.length > 0;
-
-  return {
-    hasData,
-    stats: [],
-    rssItems,
   };
 }
 

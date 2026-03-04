@@ -1,6 +1,6 @@
 # TrendRadar Telegram Bot
 
-Interactive Telegram bot for TrendRadar. Supports user subscriptions, on-demand reports, and scheduled morning broadcasts.
+Interactive Telegram bot for TrendRadar. Supports user subscriptions and on-demand analyzed reports.
 
 ## Quick Start
 
@@ -39,8 +39,8 @@ bot:
     reportsPerHour: 6
     cooldownMinutes: 5
   databasePath: "output/bot/bot.db"
-  scheduleReportCron: "0 7 * * *"
-  reportTimezone: "Europe/Kyiv"
+  # scheduleReportCron/reportTimezone can remain in config,
+  # but scheduled broadcast is currently disabled in bot runtime.
 ```
 
 ## Run Modes
@@ -71,7 +71,6 @@ User:
 
 Admin:
 - `/stats`
-- `/broadcast`
 
 ## Dokploy Production
 
@@ -90,7 +89,7 @@ Optional env:
 Container runs 24/7 in long-polling mode with:
 - `TRENDRADAR_ENTRYPOINT=bot`
 
-## Daily Pipeline + 07:00 Broadcast
+## Daily Pipeline (Bot Broadcast Disabled)
 
 Recommended production flow:
 1. Keep bot container running continuously
@@ -100,10 +99,6 @@ Recommended production flow:
 ```bash
 env TRENDRADAR_ENTRYPOINT=run bun run dist/index.js
 ```
-
-4. Bot performs scheduled subscriber broadcast at 07:00 via:
-- `bot.scheduleReportCron: "0 7 * * *"`
-- `bot.reportTimezone: "Europe/Kyiv"`
 
 ## Storage/Persistence
 
@@ -119,12 +114,13 @@ Bot not responding:
 3. Send `/start` first
 
 `/report` returns no data:
-1. Run pipeline once (`TRENDRADAR_ENTRYPOINT=run`)
-2. Verify `output/rss/` has latest DB
+1. Ensure `aiPipeline.enabled: true` in config
+2. Ensure `AI_API_KEY` is configured
+3. Check bot logs for pipeline failure details
 
 Duplicate polling conflict:
 1. Ensure only one running instance uses the same bot token
 
 Schedule not firing at expected local time:
-1. Confirm `TZ` and `bot.reportTimezone`
-2. Confirm Dokploy scheduler timezone or adjust cron
+1. Bot-side schedule is disabled
+2. Use Dokploy scheduler + `TRENDRADAR_ENTRYPOINT=run` for timed runs

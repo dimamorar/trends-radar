@@ -25,10 +25,7 @@ export function createHelpHandler(subscriberService: SubscriberService) {
       `/help - Show this help message`;
 
     if (isAdmin) {
-      message +=
-        `\n\n<b>Admin Commands</b>\n` +
-        `/stats - Show bot statistics\n` +
-        `/broadcast - Send report to all subscribers`;
+      message += `\n\n<b>Admin Commands</b>\n` + `/stats - Show bot statistics`;
     }
 
     await ctx.reply(message, { parse_mode: "HTML" });

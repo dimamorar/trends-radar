@@ -42,6 +42,28 @@ export interface AIPipelineResult {
   clusterCount: number;
 }
 
+export type OnDemandReportErrorCode =
+  | "ai_pipeline_disabled"
+  | "missing_ai_api_key"
+  | "no_rss_items"
+  | "no_topics"
+  | "pipeline_failed";
+
+export type OnDemandReportResult =
+  | {
+      ok: true;
+      topics: ClusterReportTopic[];
+      totalItems: number;
+      dedupedItems: number;
+      clusterCount: number;
+      topicCount: number;
+    }
+  | {
+      ok: false;
+      code: OnDemandReportErrorCode;
+      message: string;
+    };
+
 /** Snapshot of each pipeline step for the inspector UI */
 export interface PipelineSnapshot {
   timestamp: string;
@@ -141,6 +163,13 @@ export class NewsAnalyzer {
    */
   get isDryRun(): boolean {
     return this.ctx.config.runtime?.dryRun ?? false;
+  }
+
+  /**
+   * Cleanup resources (storage/clients)
+   */
+  async cleanup(): Promise<void> {
+    await this.ctx.cleanup();
   }
 
   /**
@@ -776,6 +805,64 @@ export class NewsAnalyzer {
   }
 
   /**
+   * Run fetch + AI pipeline for on-demand bot reports.
+   * Returns typed error messages for user-safe handling.
+   */
+  async runOnDemandReport(): Promise<OnDemandReportResult> {
+    const pipelineConfig = this.ctx.config.aiPipeline;
+    if (!pipelineConfig?.enabled) {
+      return {
+        ok: false,
+        code: "ai_pipeline_disabled",
+        message: "Analysis is unavailable: AI pipeline is disabled.",
+      };
+    }
+
+    if (!this.ctx.config.ai.apiKey) {
+      return {
+        ok: false,
+        code: "missing_ai_api_key",
+        message: "Analysis is unavailable: AI API key is not configured.",
+      };
+    }
+
+    const { rssItems } = await this.crawlRssData();
+    if (!rssItems || rssItems.length === 0) {
+      return {
+        ok: false,
+        code: "no_rss_items",
+        message: "No fresh RSS items fetched. Please try again later.",
+      };
+    }
+
+    const pipelineResult = await this.runAIPipeline(rssItems);
+    if (!pipelineResult) {
+      return {
+        ok: false,
+        code: "pipeline_failed",
+        message: "Failed to analyze and cluster news. Please try again later.",
+      };
+    }
+
+    if (pipelineResult.topics.length === 0) {
+      return {
+        ok: false,
+        code: "no_topics",
+        message: "News fetched, but no significant clusters were found.",
+      };
+    }
+
+    return {
+      ok: true,
+      topics: pipelineResult.topics,
+      totalItems: pipelineResult.totalItems,
+      dedupedItems: pipelineResult.dedupedItems,
+      clusterCount: pipelineResult.clusterCount,
+      topicCount: pipelineResult.topics.length,
+    };
+  }
+
+  /**
    * Main run method
    */
   async run(): Promise<void> {
@@ -846,7 +933,7 @@ export class NewsAnalyzer {
       logger.error({ error }, "Analysis pipeline error");
       throw error;
     } finally {
-      await this.ctx.cleanup();
+      await this.cleanup();
     }
   }
 }

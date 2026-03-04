@@ -1,4 +1,3 @@
-import cron from "node-cron";
 import { Bot } from "grammy";
 import type { AppContext } from "../core/context.js";
 import type { BotConfig } from "../types/config.js";
@@ -13,7 +12,6 @@ import {
   createUnsubscribeHandler,
 } from "./commands/index.js";
 import { RateLimiter } from "./middleware/rateLimit.js";
-import { BroadcastService } from "./services/broadcast.js";
 import { SubscriberService } from "./services/subscriber.js";
 import { SubscriberStorage } from "./storage/subscriber.js";
 
@@ -25,11 +23,9 @@ export class TrendRadarBot {
   private storage: SubscriberStorage;
   private subscriberService: SubscriberService;
   private rateLimiter: RateLimiter;
-  private broadcastService: BroadcastService;
   private appContext: AppContext;
   private botConfig: BotConfig;
   private isRunning = false;
-  private scheduledTask: cron.ScheduledTask | null = null;
 
   constructor(appContext: AppContext, botConfig: BotConfig) {
     this.appContext = appContext;
@@ -57,12 +53,6 @@ export class TrendRadarBot {
       reportsPerHour: botConfig.rateLimit.reportsPerHour,
       cooldownMinutes: botConfig.rateLimit.cooldownMinutes,
     });
-
-    this.broadcastService = new BroadcastService(
-      this.bot,
-      this.subscriberService,
-      this.appContext,
-    );
 
     // Setup commands
     this.setupCommands();
@@ -102,38 +92,6 @@ export class TrendRadarBot {
 
     // Admin commands
     this.bot.command("stats", createStatsHandler(this.subscriberService));
-
-    // Broadcast command (admin only)
-    this.bot.command("broadcast", async (ctx) => {
-      const from = ctx.from;
-      const chatId = ctx.chat?.id;
-      if (!from || !chatId || !this.subscriberService.isAdmin(from.id)) {
-        await ctx.reply("This command is only available to administrators.");
-        return;
-      }
-
-      const loadingMsg = await ctx.reply("Starting broadcast...");
-
-      try {
-        const result = await this.broadcastService.broadcastReport();
-
-        await ctx.api.editMessageText(
-          chatId,
-          loadingMsg.message_id,
-          `Broadcast complete!\n\n` +
-            `Total subscribers: ${result.totalSubscribers}\n` +
-            `Successful: ${result.successCount}\n` +
-            `Failed: ${result.failureCount}`,
-        );
-      } catch (error) {
-        logger.error({ error }, "[Bot] Broadcast failed");
-        await ctx.api.editMessageText(
-          chatId,
-          loadingMsg.message_id,
-          "Broadcast failed. Check logs for details.",
-        );
-      }
-    });
 
     // Set bot commands for menu
     this.bot.api.setMyCommands([
@@ -191,33 +149,16 @@ export class TrendRadarBot {
   }
 
   /**
-   * Schedule daily broadcast to subscribers if scheduleReportCron is set.
+   * Scheduled broadcast is intentionally disabled.
    */
   private setupScheduledBroadcast(): void {
     const { scheduleReportCron, reportTimezone } = this.botConfig;
-    if (!scheduleReportCron) return;
-
-    if (reportTimezone) {
-      process.env.TZ = reportTimezone;
+    if (scheduleReportCron) {
+      logger.info(
+        { scheduleReportCron, reportTimezone },
+        "[Bot] Scheduled broadcast configured but disabled",
+      );
     }
-
-    this.scheduledTask = cron.schedule(scheduleReportCron, async () => {
-      logger.info("[Bot] Running scheduled broadcast");
-      try {
-        const result = await this.broadcastService.broadcastReport();
-        logger.info(
-          { ...result },
-          "[Bot] Scheduled broadcast finished",
-        );
-      } catch (error) {
-        logger.error({ error }, "[Bot] Scheduled broadcast failed");
-      }
-    });
-
-    logger.info(
-      { scheduleReportCron, reportTimezone },
-      "[Bot] Scheduled broadcast enabled",
-    );
   }
 
   /**
@@ -230,10 +171,6 @@ export class TrendRadarBot {
 
     logger.info("[Bot] Stopping bot...");
 
-    if (this.scheduledTask) {
-      this.scheduledTask.stop();
-      this.scheduledTask = null;
-    }
     this.bot.stop();
     this.storage.cleanup();
     this.isRunning = false;
@@ -253,13 +190,6 @@ export class TrendRadarBot {
 
     process.once("SIGINT", () => shutdown("SIGINT"));
     process.once("SIGTERM", () => shutdown("SIGTERM"));
-  }
-
-  /**
-   * Get broadcast service for external use
-   */
-  getBroadcastService(): BroadcastService {
-    return this.broadcastService;
   }
 
   /**
