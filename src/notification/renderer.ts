@@ -366,12 +366,7 @@ export function renderClusterReport(
     const topic = summaries[i];
     const rank = i + 1;
 
-    // Topic header with rank and source count
-    const sourcesBadge = topic.distinctSources > 1
-      ? ` [${topic.distinctSources} sources, ${topic.totalMentions} items]`
-      : ` [${topic.totalMentions} items]`;
-
-    lines.push(`<b>${rank}. ${escapeHtml(topic.headline)}</b>${sourcesBadge}`);
+    lines.push(`<b>${rank}. ${escapeHtml(topic.headline)}</b>`);
 
     // Summary
     if (topic.summary) {
@@ -381,7 +376,7 @@ export function renderClusterReport(
     // Key points
     if (topic.keyPoints && topic.keyPoints.length > 0) {
       for (const point of topic.keyPoints) {
-        lines.push(`  • ${escapeHtml(point)}`);
+        lines.push(`  ${escapeHtml(point)}`);
       }
     }
 

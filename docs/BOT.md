@@ -1,6 +1,6 @@
 # TrendRadar Telegram Bot
 
-Interactive Telegram bot for TrendRadar. Supports user subscriptions and on-demand analyzed reports.
+Interactive Telegram bot for TrendRadar. Supports user subscriptions, on-demand analyzed reports, and scheduled delivery.
 
 ## Quick Start
 
@@ -39,8 +39,8 @@ bot:
     reportsPerHour: 6
     cooldownMinutes: 5
   databasePath: "output/bot/bot.db"
-  # scheduleReportCron/reportTimezone can remain in config,
-  # but scheduled broadcast is currently disabled in bot runtime.
+  scheduleReportCron: "0 7 * * *"
+  reportTimezone: "Europe/Kyiv"
 ```
 
 ## Run Modes
@@ -89,16 +89,17 @@ Optional env:
 Container runs 24/7 in long-polling mode with:
 - `TRENDRADAR_ENTRYPOINT=bot`
 
-## Daily Pipeline (Bot Broadcast Disabled)
+## Daily Auto-Report (Bot Scheduler Enabled)
 
 Recommended production flow:
 1. Keep bot container running continuously
-2. Add Dokploy Compose Schedule Job at `50 6 * * *` (Kyiv)
-3. Job command:
-
-```bash
-env TRENDRADAR_ENTRYPOINT=run bun run dist/index.js
-```
+2. Configure bot scheduler:
+   - `bot.scheduleReportCron` (required for auto-send)
+   - `bot.reportTimezone` (optional timezone for cron execution)
+3. Ensure active subscribers exist (`/subscribe`)
+4. Ensure AI pipeline is configured:
+   - `aiPipeline.enabled: true`
+   - `AI_API_KEY` set
 
 ## Storage/Persistence
 
@@ -122,5 +123,16 @@ Duplicate polling conflict:
 1. Ensure only one running instance uses the same bot token
 
 Schedule not firing at expected local time:
-1. Bot-side schedule is disabled
-2. Use Dokploy scheduler + `TRENDRADAR_ENTRYPOINT=run` for timed runs
+1. Confirm `bot.scheduleReportCron` is set and valid
+2. Confirm `bot.reportTimezone` matches intended zone
+3. Confirm bot process is running continuously at trigger time
+4. Check logs for:
+   - `[Bot] Scheduled broadcast enabled`
+   - `[Bot] Running scheduled broadcast`
+   - `[Broadcast] Report generation failed` (AI/pipeline issues)
+
+Report not sent today:
+1. Verify at least one active subscriber in `output/bot/bot.db`
+2. Verify `AI_API_KEY` and `aiPipeline.enabled: true`
+3. Check if RSS fetch returned items for today (feed freshness/date filter)
+4. Review broadcast result logs for `reportErrorCode` / `reportErrorMessage`

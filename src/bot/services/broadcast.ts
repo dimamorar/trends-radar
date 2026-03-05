@@ -6,9 +6,9 @@
 
 import type { Bot } from "grammy";
 import type { AppContext } from "../../core/context.js";
-import { renderHtmlContent } from "../../notification/renderer.js";
+import { NewsAnalyzer } from "../../core/newsAnalyzer.js";
+import { renderClusterReport } from "../../notification/renderer.js";
 import { splitForPlatform } from "../../notification/splitter.js";
-import type { RssItem, StatisticsEntry } from "../../types/index.js";
 import { logger, maskId } from "../../utils/logger.js";
 import type { Subscriber } from "../storage/subscriber.js";
 import type { SubscriberService } from "./subscriber.js";
@@ -20,6 +20,8 @@ export interface BroadcastResult {
   totalSubscribers: number;
   successCount: number;
   failureCount: number;
+  reportErrorCode?: string;
+  reportErrorMessage?: string;
   failures: Array<{
     subscriberId: number;
     chatId: number;
@@ -67,28 +69,21 @@ export class BroadcastService {
       `[Broadcast] Starting broadcast to ${subscribers.length} subscribers`,
     );
 
-    // Generate report
-    const reportData = await this.generateReportData();
-
-    if (!reportData.hasData) {
-      logger.info("[Broadcast] No data available for broadcast");
+    const messageResult = await this.generateReportMessages();
+    if (!messageResult.ok) {
+      result.reportErrorCode = messageResult.code;
+      result.reportErrorMessage = messageResult.message;
+      logger.warn(
+        {
+          code: messageResult.code,
+          message: messageResult.message,
+        },
+        "[Broadcast] Report generation failed, skipping send",
+      );
       return result;
     }
 
-    // Render HTML content
-    const htmlContent = renderHtmlContent(
-      { stats: reportData.stats },
-      reportData.rssItems,
-      {
-        reportType: "TrendRadar Report",
-        showRss: true,
-        maxItems: this.appContext.config.report.maxNewsPerKeyword,
-        getTime: () => this.appContext.getTime(),
-      },
-    );
-
-    // Split for Telegram
-    const messages = splitForPlatform(htmlContent, "telegram");
+    const messages = messageResult.messages;
 
     // Send to each subscriber
     for (const subscriber of subscribers) {
@@ -156,41 +151,52 @@ export class BroadcastService {
   }
 
   /**
-   * Generate report data
-   * Note: Frequency words logic has been removed - returns empty stats
+   * Generate analyzed cluster report messages once per broadcast run.
    */
-  private async generateReportData(): Promise<{
-    hasData: boolean;
-    stats: StatisticsEntry[];
-    rssItems: RssItem[] | null;
-  }> {
-    const storage = this.appContext.getStorageManager();
+  private async generateReportMessages(): Promise<
+    | { ok: true; messages: string[] }
+    | { ok: false; code: string; message: string }
+  > {
+    let analyzer: NewsAnalyzer | null = null;
 
-    // Get RSS data
-    const rssData = await storage.getRssData();
-    let rssItems: RssItem[] | null = null;
+    try {
+      analyzer = new NewsAnalyzer(this.appContext.config);
+      const reportResult = await analyzer.runOnDemandReport();
 
-    if (rssData) {
-      rssItems = [];
-      for (const [feedId, items] of Object.entries(rssData.items)) {
-        const feedName = rssData.idToName[feedId] || feedId;
-        for (const item of items) {
-          rssItems.push({
-            ...item,
-            feedId,
-            feedName,
-          });
+      if (!reportResult.ok) {
+        return {
+          ok: false,
+          code: reportResult.code,
+          message: reportResult.message,
+        };
+      }
+
+      const htmlContent = renderClusterReport(reportResult.topics, {
+        reportType: "TrendRadar Report",
+        getTime: () => this.appContext.getTime(),
+      });
+
+      return {
+        ok: true,
+        messages: splitForPlatform(htmlContent, "telegram"),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error({ error }, "[Broadcast] Unexpected report generation error");
+      return {
+        ok: false,
+        code: "pipeline_failed",
+        message,
+      };
+    } finally {
+      if (analyzer) {
+        try {
+          await analyzer.cleanup();
+        } catch (error) {
+          logger.warn({ error }, "[Broadcast] Analyzer cleanup failed");
         }
       }
     }
-
-    const hasData = rssItems !== null && rssItems.length > 0;
-
-    return {
-      hasData,
-      stats: [],
-      rssItems,
-    };
   }
 
   /**

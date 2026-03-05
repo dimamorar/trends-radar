@@ -1,3 +1,4 @@
+import cron from "node-cron";
 import { Bot } from "grammy";
 import type { AppContext } from "../core/context.js";
 import type { BotConfig } from "../types/config.js";
@@ -12,6 +13,7 @@ import {
   createUnsubscribeHandler,
 } from "./commands/index.js";
 import { RateLimiter } from "./middleware/rateLimit.js";
+import { BroadcastService } from "./services/broadcast.js";
 import { SubscriberService } from "./services/subscriber.js";
 import { SubscriberStorage } from "./storage/subscriber.js";
 
@@ -23,9 +25,11 @@ export class TrendRadarBot {
   private storage: SubscriberStorage;
   private subscriberService: SubscriberService;
   private rateLimiter: RateLimiter;
+  private broadcastService: BroadcastService;
   private appContext: AppContext;
   private botConfig: BotConfig;
   private isRunning = false;
+  private scheduledTask: cron.ScheduledTask | null = null;
 
   constructor(appContext: AppContext, botConfig: BotConfig) {
     this.appContext = appContext;
@@ -53,6 +57,12 @@ export class TrendRadarBot {
       reportsPerHour: botConfig.rateLimit.reportsPerHour,
       cooldownMinutes: botConfig.rateLimit.cooldownMinutes,
     });
+
+    this.broadcastService = new BroadcastService(
+      this.bot,
+      this.subscriberService,
+      this.appContext,
+    );
 
     // Setup commands
     this.setupCommands();
@@ -149,16 +159,32 @@ export class TrendRadarBot {
   }
 
   /**
-   * Scheduled broadcast is intentionally disabled.
+   * Schedule report broadcast to active subscribers if scheduleReportCron is set.
    */
   private setupScheduledBroadcast(): void {
     const { scheduleReportCron, reportTimezone } = this.botConfig;
-    if (scheduleReportCron) {
-      logger.info(
-        { scheduleReportCron, reportTimezone },
-        "[Bot] Scheduled broadcast configured but disabled",
-      );
+    if (!scheduleReportCron) {
+      return;
     }
+
+    this.scheduledTask = cron.schedule(
+      scheduleReportCron,
+      async () => {
+        logger.info("[Bot] Running scheduled broadcast");
+        try {
+          const result = await this.broadcastService.broadcastReport();
+          logger.info({ ...result }, "[Bot] Scheduled broadcast finished");
+        } catch (error) {
+          logger.error({ error }, "[Bot] Scheduled broadcast failed");
+        }
+      },
+      reportTimezone ? { timezone: reportTimezone } : undefined,
+    );
+
+    logger.info(
+      { scheduleReportCron, reportTimezone },
+      "[Bot] Scheduled broadcast enabled",
+    );
   }
 
   /**
@@ -170,6 +196,11 @@ export class TrendRadarBot {
     }
 
     logger.info("[Bot] Stopping bot...");
+
+    if (this.scheduledTask) {
+      this.scheduledTask.stop();
+      this.scheduledTask = null;
+    }
 
     this.bot.stop();
     this.storage.cleanup();
