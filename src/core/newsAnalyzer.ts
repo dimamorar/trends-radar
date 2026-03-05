@@ -753,7 +753,6 @@ export class NewsAnalyzer {
         return {
           headline: summary.headline,
           summary: summary.summary,
-          keyPoints: summary.keyPoints,
           urls: urls.slice(0, 8),
           distinctSources: scored.distinctSources,
           totalMentions: scored.totalMentions,

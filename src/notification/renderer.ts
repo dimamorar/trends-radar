@@ -345,14 +345,15 @@ export function renderClusterReport(
   summaries: ClusterReportTopic[],
   options: { reportType?: string; getTime?: () => Date } = {},
 ): string {
-  const { reportType = 'TrendRadar Daily Digest', getTime = () => new Date() } = options;
+  const { reportType = "TrendRadar Daily Digest", getTime = () => new Date() } =
+    options;
 
   const now = getTime();
-  const timeStr = now.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+  const timeStr = now.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
     hour12: false,
   });
 
@@ -360,7 +361,7 @@ export function renderClusterReport(
 
   // Header
   lines.push(`<b>${escapeHtml(reportType)}</b>`);
-  lines.push(`${timeStr} | ${summaries.length} topics\n`);
+  lines.push(`${timeStr}\n`);
 
   for (let i = 0; i < summaries.length; i++) {
     const topic = summaries[i];
@@ -373,13 +374,6 @@ export function renderClusterReport(
       lines.push(escapeHtml(topic.summary));
     }
 
-    // Key points
-    if (topic.keyPoints && topic.keyPoints.length > 0) {
-      for (const point of topic.keyPoints) {
-        lines.push(`  ${escapeHtml(point)}`);
-      }
-    }
-
     // Representative links
     if (topic.urls && topic.urls.length > 0) {
       const linkParts: string[] = [];
@@ -387,13 +381,13 @@ export function renderClusterReport(
         const label = escapeHtml(link.name || link.url);
         linkParts.push(`<a href="${link.url}">${label}</a>`);
       }
-      lines.push(`  ${linkParts.join(' | ')}`);
+      lines.push(`  ${linkParts.join(" | ")}`);
     }
 
-    lines.push('');
+    lines.push("");
   }
 
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 /**
@@ -402,7 +396,6 @@ export function renderClusterReport(
 export interface ClusterReportTopic {
   headline: string;
   summary: string;
-  keyPoints: string[];
   urls: Array<{ name: string; url: string }>;
   distinctSources: number;
   totalMentions: number;
